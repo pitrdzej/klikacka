@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klikací hra - Zpěvák</title>
+
+    <link rel="stylesheet" href="reset.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;600;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <a class="logo" href="#">
+                <i class="fa-solid fa-microphone"></i>
+            </a>
+            <nav>
+                <a href="#"><i class="fa-solid fa-lightbulb"></i></a>
+                <a href="#"><i class="fa-solid fa-gear"></i></a>
+            </nav>
+        </header>
+        <main class="layout">
+            <aside class="sidebar">
+                <h2>Vylepšení</h2>
+
+                <section class="upgrade" data-upgrade="investor">
+                    <h3><i class="fa-solid fa-handshake"></i> Investor</h3>
+                    <p class="desc">+2$ / sekundu</p>
+                    <p class="price">$10</p>
+                </section>
+                <section class="upgrade" data-upgrade="reklama">
+                    <h3><i class="fa-solid fa-bullhorn"></i> Reklama</h3>
+                    <p class="desc">+5$ / 10 sekund</p>
+                    <p class="price">$50</p>
+                </section>
+                <section class="upgrade" data-upgrade="vybaveni">
+                    <h3><i class="fa-solid fa-music"></i> Vybavení</h3>
+                    <p class="desc">+1$ / klik</p>
+                    <p class="price">$5</p>
+                </section>
+                <section class="upgrade" data-upgrade="sal">
+                    <h3><i class="fa-solid fa-building"></i> Sál</h3>
+                    <p class="desc">+ Kapacita 10</p>
+                    <p class="price">$20</p>
+                </section>
+                <section class="upgrade" data-upgrade="listky">
+                    <h3><i class="fa-solid fa-ticket"></i> Dražší lístky</h3>
+                    <p class="desc">+2$ / lístek</p>
+                    <p class="price">$15</p>
+                </section>
+            </aside>
+
+            <article class="stage-section">
+                <section class="money-display">
+                    <i class="fa-solid fa-dollar-sign"></i>
+                    <span class="money-value" data-money>100</span>
+                </section>
+                <section class="stage">
+                    <div class="spotlight"></div>
+                    <div class="click-area" data-action="sing">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                </section>
+                <section class="publikum">
+                    <h3><i class="fa-solid fa-users"></i> Publikum</h3>
+                    <div class="audience-container" data-audience>
+                        <div class="audience-member active"></div>
+                        <div class="audience-member active"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                        <div class="audience-member"></div>
+                    </div>
+                    <p class="audience-stats">
+                        <span data-audience-count>2</span> /
+                        <span data-capacity>10</span>
+                    </p>
+                </section>
+            </article>
+            <aside class="stats">
+                <h2>Přehled</h2>
+                <table>
+                    <tr>
+                        <td>Investoři</td>
+                        <td data-investors>1</td>
+                    </tr>
+                    <tr>
+                        <td>Publikum</td>
+                        <td>
+                            <span data-audience-count>2</span> /
+                            <span data-capacity>10</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Úroveň vybavení</td>
+                        <td data-equipment>1</td>
+                    </tr>
+                    <tr>
+                        <td>Cena lístku</td>
+                        <td data-ticket-price>5$</td>
+                    </tr>
+                </table>
+            </aside>
+        </main>
+    </div>
+</body>
+
+</html>
+<!-- Design rozhodně není finální, je to orientační verze toho, jak to kde chci mít.
+  V budoucnu bude barevnější, hezčí a nebude vypadat tak uměle. 
+  Při práci na designu byl využit Microsoft Copilot. 
+  Zdroje: 
+  - https://chatgpt.com/share/6998214e-1600-8007-9bcf-199560f69ab4
+  -->

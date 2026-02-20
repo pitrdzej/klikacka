@@ -1,0 +1,23 @@
+Klikací hra - Zpěvák 
+
+Uvedení do děje: 
+Jsem zpěvák. Malý, pouliční zpěvák, který se snaží vylepšovat své vybavení, zisk a svůj hudební talent. To se v této hře bude dělat klikáním. Hlavní obraz je moje poje pódium. Jakmile na něj kliknu, zpěvák dostává peníze, které jsou nahoře v pódiu. Od peněz se odvíjí prakticky celý průběh hry. Na výběr je získání různých vylepšení, které přidávají peníze mnohem rychleji. 
+
+Vylepšení:
+1. vylepšení - Investor
+Získali jste investora - to znamená, že vám chodí pravidelně množství peněz na to, abyste mohli vystupovat. Pokud nemáte investora, nemůžete získat větší pódium. Čím více vám věří, tím větší peníze vám dává. 
+
+2. vylepšení - Reklama
+Jakmile vyvěsíte reklamu, přijde se na vás podívat jeden člověk za 10 sekund (a další takový odejde - tedy každých 10 sekund dostanete nějaký obnos peněz). Každý takový člověk vám dá nějaké peníze. Pozor - publikum má omezenou kapacitu. Můžete oslovit jenom tolik lidí, na kolik stačí kapacita koncertního sálu. 
+
+3. vylepšení - Vybavení 
+Pro dobré koncertování si musíte postupně kupovat vybavení. Čím lepší vybavení máte, tím více vám lidé dávají jako jednorázový příspěvek (získáváte klikáním více peněz). 
+
+4. vylepšení - Sál
+Čím víc bude lidí, tím větší bude potřeba sál. Jako takový nic nedělá, pouze zvýší kapacitu publika. 
+
+5. vylepšení - Dražší lístky
+Zvýší peníze, které dostáváte od publika. 
+
+Cíl hry: 
+Být co nejlepší a nejúspěšnější zpěvák. Do budoucna se přemýšlí o implementaci trofejí, které jdou získat sbíráním peněz a správným investováním. 
