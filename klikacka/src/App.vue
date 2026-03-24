@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import '@/assets/reset.css'
+import '@/assets/style.css'
 
-// ===== STATE =====
 const money = ref<number>(100)
 
 const investors = ref<number>(1)
@@ -11,19 +12,31 @@ const ticketPrice = ref<number>(5)
 const audience = ref<number>(2)
 const capacity = ref<number>(10)
 
-// ===== CLICK =====
 const clickPower = computed<number>(() => equipment.value)
+const floatingTexts = ref<Array<{ id: number; x: number; y: number; amount: number }>>([])
+let textId = 0
 
-function sing(): void {
+function sing(event: MouseEvent): void {
   money.value += clickPower.value
+  
+  const rect = (event.target as HTMLElement).closest('.click-area')?.getBoundingClientRect()
+  if (rect) {
+    const id = textId++
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    floatingTexts.value.push({ id, x, y, amount: clickPower.value })
+    
+    setTimeout(() => {
+      floatingTexts.value = floatingTexts.value.filter(t => t.id !== id)
+    }, 1000)
+  }
 }
 
-// ===== PASSIVE INCOME =====
 setInterval((): void => {
   money.value += investors.value * 2
 }, 1000)
 
-// ===== AUDIENCE SYSTEM =====
+
 setInterval((): void => {
   if (audience.value < capacity.value) {
     audience.value++
@@ -32,7 +45,6 @@ setInterval((): void => {
   money.value += audience.value * ticketPrice.value
 }, 10000)
 
-// ===== UPGRADES =====
 function buyInvestor(): void {
   if (money.value >= 10) {
     money.value -= 10
@@ -67,7 +79,6 @@ function buyTickets(): void {
   }
 }
 
-// ===== UI =====
 const audienceArray = computed<boolean[]>(() =>
   Array.from({ length: capacity.value }, (_, i) => i < audience.value)
 )
@@ -87,7 +98,6 @@ const audienceArray = computed<boolean[]>(() =>
 
     <main class="layout">
       
-      <!-- SIDEBAR -->
       <aside class="sidebar">
         <h2>Vylepšení</h2>
 
@@ -131,12 +141,19 @@ const audienceArray = computed<boolean[]>(() =>
 
         <section class="stage">
           <div class="spotlight"></div>
-          <div class="click-area" @click="sing">
+          <div class="click-area" @click="sing" data-action>
             <i class="fa-solid fa-user"></i>
+          </div>
+          <div 
+            v-for="text in floatingTexts" 
+            :key="text.id"
+            class="floating-text"
+            :style="{ left: text.x + 'px', top: text.y + 'px' }"
+          >
+            +{{ text.amount }}$
           </div>
         </section>
 
-        <!-- PUBLIKUM -->
         <section class="publikum">
           <h3><i class="fa-solid fa-users"></i> Publikum</h3>
 
@@ -155,7 +172,6 @@ const audienceArray = computed<boolean[]>(() =>
         </section>
       </article>
 
-      <!-- STATS -->
       <aside class="stats">
         <h2>Přehled</h2>
         <table>

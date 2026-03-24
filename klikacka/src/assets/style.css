@@ -130,6 +130,47 @@ article {
     transform: scale(0.9);
 }
 
+.click-area {
+    cursor: pointer;
+    transition: transform 0.15s ease-out, filter 0.15s ease-out;
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.click-area:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 15px rgba(255, 77, 109, 0.6));
+}
+
+.click-area:active {
+    transform: scale(0.85);
+}
+
+.floating-text {
+    position: fixed;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ff4d6d;
+    pointer-events: none;
+    animation: float-up 1s ease-out forwards;
+    text-shadow: 0 0 10px rgba(255, 77, 109, 0.5);
+}
+
+@keyframes float-up {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-80px) scale(1.2);
+    }
+}
+
+
 .stage i {
     font-size: 6rem;
 }
