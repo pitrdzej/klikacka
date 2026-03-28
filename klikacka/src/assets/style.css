@@ -79,9 +79,12 @@ aside section p {
     font-size: 0.85rem;
 }
 
-aside section .price {
-    margin-top: 8px;
-    font-weight: 600;
+aside section .price.disabled {
+    color: #666;
+    opacity: 0.5;
+}
+
+aside section .price:not(.disabled) {
     color: #ff4d6d;
 }
 
