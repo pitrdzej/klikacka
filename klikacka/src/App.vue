@@ -25,9 +25,11 @@ let textId = 0
 
 // publikum
 const audienceMembers = ref<Array<{ id: number; joinTime: number; leaveTime: number }>>([])
-let audienceInterval: number | null = null
-let investorInterval: number | null = null
-let audienceIncomeInterval: number | null = null
+
+// Intervaly pro automatické příjmy a správu publika
+let audienceInterval: ReturnType<typeof setInterval> | null = null
+let investorInterval: ReturnType<typeof setInterval> | null = null
+let audienceIncomeInterval: ReturnType<typeof setInterval> | null = null
 
 // localstorage pro ukladani stavu hry
 const saveGame = () => {
