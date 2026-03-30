@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import '@/assets/reset.css'
 import '@/assets/style.css'
 
-const money = ref<number>(0) // Start with nothing - pure grind!
+const money = ref<number>(0) // pocatecni stav
 const investors = ref<number>(0)
 const equipment = ref<number>(1)
 const ticketPrice = ref<number>(1)
@@ -12,25 +12,24 @@ const capacity = ref<number>(10)
 const adLevel = ref<number>(0)
 
 const clickPower = computed<number>(() => {
-  if (equipment.value === 1) return 1 // Base click power
-  if (equipment.value === 2) return 2 // First upgrade: +2 total
-  if (equipment.value === 3) return 3 // Second upgrade: +3 total
-  // From third upgrade onwards: 3.1 base, then multiply
-  return Math.floor(31 + (equipment.value - 4) * 3.1) / 10 // 3.1, 6.2, 9.3, etc.
+  if (equipment.value === 1) return 1 // klasicky klikani
+  if (equipment.value === 2) return 2 // Poprvy tam dam +2, pak +3 a pak to pojede po trosickach
+  if (equipment.value === 3) return 3 
+  return Math.floor(31 + (equipment.value - 4) * 3.1) / 10 
 })
-const investorIncome = computed<number>(() => Math.floor(investors.value * (1 + investors.value * 2.5))) // Scales from 0 to ~10,000$ per investor
-const audienceIncome = computed<number>(() => Math.floor(audience.value * (1 + (ticketPrice.value - 1) * 6))) // Scales from 1$ to ~42,000$ per person
+const investorIncome = computed<number>(() => investors.value * (1 + investors.value * 2.5)) // skalovani pro investory
+const audienceIncome = computed<number>(() => audience.value * (1 + (ticketPrice.value - 1) * 6)) // skalovani pro publikum a cenu listku
 
 const floatingTexts = ref<Array<{ id: number; x: number; y: number; amount: number }>>([])
 let textId = 0
 
-// Audience management
+// publikum
 const audienceMembers = ref<Array<{ id: number; joinTime: number; leaveTime: number }>>([])
 let audienceInterval: number | null = null
 let investorInterval: number | null = null
 let audienceIncomeInterval: number | null = null
 
-// Save/Load functionality
+// localstorage pro ukladani stavu hry
 const saveGame = () => {
   const gameState = {
     money: money.value,
@@ -66,7 +65,7 @@ const loadGame = () => {
 
 function sing(event: MouseEvent): void {
   money.value += clickPower.value
-  saveGame() // Save after each click
+  saveGame() // aby se to savnulo po kazdym kliku
   
   const rect = (event.target as HTMLElement).closest('.click-area')?.getBoundingClientRect()
   if (rect) {
@@ -82,7 +81,7 @@ function sing(event: MouseEvent): void {
 }
 
 function buyInvestor(): void {
-  const cost = Math.floor(300 + (investors.value * 150)) // Start at $300, increase by $150 each time
+  const cost = Math.floor(300 + (investors.value * 150)) // startujeme na 300 a pak to pujde o 150 zatim, mozna to pak udelam vic skalovatelny
   if (money.value >= cost) {
     money.value -= cost
     investors.value++
@@ -91,32 +90,31 @@ function buyInvestor(): void {
 }
 
 function buyAd(): void {
-  const cost = Math.floor(100 * Math.pow(10, adLevel.value)) // Exponential pricing: $100, $1000, $10000, etc.
-  if (money.value >= cost && audience.value < capacity.value) { // Can't buy if hall is full
+  const cost = Math.floor(100 * Math.pow(10, adLevel.value)) // Exponencialni skalovani ceny protoze proc ne
+  if (money.value >= cost && audience.value < capacity.value) { // Pokud je kapacita plna, tak nekoupim reklamu, nepotrebuju ji 
     money.value -= cost
     adLevel.value++
     saveGame()
 
-    // Calculate delay based on ad level (starts at 20 seconds, decreases with upgrades)
+    // delay mezi prichazejicima a odchazejicima lidma 
     const baseDelay = 20000 // 20 seconds
-    const delayReduction = Math.min(adLevel.value * 2000, 18000) // Reduce by 2 seconds per level, max 18 seconds reduction
-    const personDelay = Math.max(baseDelay - delayReduction, 2000) // Minimum 2 seconds
+    const delayReduction = Math.min(adLevel.value * 2000, 18000) 
+    const personDelay = Math.max(baseDelay - delayReduction, 2000) 
 
-    // Add people gradually with calculated delay
-    const peopleToAdd = 5 + Math.floor(adLevel.value / 2) // More people with higher ad levels
+    const peopleToAdd = 5 + Math.floor(adLevel.value / 2) // vic lidi kdyz bude lepsi level
     for (let i = 0; i < peopleToAdd; i++) {
       setTimeout(() => {
         if (audience.value < capacity.value) {
           addAudienceMember()
-          saveGame() // Save when audience changes
+          saveGame() 
         }
-      }, i * personDelay) // People arrive with the calculated delay
+      }, i * personDelay) // Lidi prijdou tak jak to maj nastaveny
     }
   }
 }
 
 function buyEquipment(): void {
-  const cost = Math.floor(200 + (equipment.value * 100)) // Start at $200, increase by $100 each time
+  const cost = Math.floor(200 + (equipment.value * 100)) // start na 200 a pak skakame o 100 
   if (money.value >= cost) {
     money.value -= cost
     equipment.value++
@@ -125,7 +123,7 @@ function buyEquipment(): void {
 }
 
 function buyHall(): void {
-  const requiredInvestors = 5 + Math.floor(capacity.value / 20) // More investors needed for larger halls
+  const requiredInvestors = 5 + Math.floor(capacity.value / 20) // Vic investoru je potreeba pro vetsi saly
   if (investors.value >= requiredInvestors) {
     investors.value -= requiredInvestors
     capacity.value += 10
@@ -134,7 +132,7 @@ function buyHall(): void {
 }
 
 function buyTickets(): void {
-  const cost = Math.floor(500 + ((ticketPrice.value - 1) * 250)) // Start at $500, increase by $250 each time
+  const cost = Math.floor(500 + ((ticketPrice.value - 1) * 250)) // zaciname na 500 a pak to bude zas skakat o dalsi obnosy penez
   if (money.value >= cost) {
     money.value -= cost
     ticketPrice.value += 2
@@ -148,7 +146,7 @@ function addAudienceMember(): void {
     const member = {
       id: Date.now() + Math.random(),
       joinTime: now,
-      leaveTime: now + 120000 // 2 minutes
+      leaveTime: now + 120000 // 2 minuty
     }
     audienceMembers.value.push(member)
     audience.value++
@@ -166,14 +164,14 @@ function removeExpiredAudience(): void {
   })
 }
 
-// Computed for display
+// Kdyz je vetsi podium, tak maximalni bude 50 a pak uz se jenom ukazuje poslednich 50 lidi a pod tim je cislo
 const displayAudience = computed(() => {
   const total = audience.value
   const maxVisible = 50
   if (total <= maxVisible) {
     return Array.from({ length: Math.max(capacity.value, total) }, (_, i) => i < total)
   } else {
-    // Show last 50 as active
+    // At to ukaze poslednich 50
     return Array.from({ length: maxVisible }, () => true)
   }
 })
@@ -185,22 +183,22 @@ const audienceOverflow = computed(() => {
 onMounted(() => {
   loadGame() // Load saved game on startup
   
-  // Investor income every 2 seconds
+  // Penize od investoru kazdych 2 sekund
   investorInterval = setInterval(() => {
     money.value += investorIncome.value
-    saveGame() // Save after income
+    saveGame() 
   }, 2000)
 
-  // Audience income every 30 seconds
+  // Penize od lidi kazdych 30 sekund
   audienceIncomeInterval = setInterval(() => {
     money.value += audienceIncome.value
-    saveGame() // Save after income
+    saveGame() 
   }, 30000)
 
-  // Check for expired audience every second
+  // Koukam jestli nekdo nema odejit z publika kazdou sekundu
   audienceInterval = setInterval(() => {
     removeExpiredAudience()
-    saveGame() // Save after audience changes
+    saveGame()
   }, 1000)
 })
 
@@ -230,14 +228,14 @@ onUnmounted(() => {
 
         <section class="upgrade" @click="buyInvestor">
           <h3><i class="fa-solid fa-handshake"></i> Investor</h3>
-          <p class="desc">+{{ Math.floor(1 + investors * 2.5).toLocaleString() }}$ / 2s (max 2000)</p>
+          <p class="desc">+{{ (1 + investors * 2.5).toFixed(1) }}$ / 2s (max 2000)</p>
           <p class="price" :class="{ 'disabled': money < (300 + (investors * 150)) }">${{ (300 + (investors * 150)).toLocaleString() }}</p>
         </section>
 
         <section class="upgrade" @click="buyAd">
           <h3><i class="fa-solid fa-bullhorn"></i> Reklama</h3>
           <p class="desc">{{ 5 + Math.floor(adLevel / 2) }} lidí za {{ Math.max(20000 - Math.min(adLevel * 2000, 18000), 2000) / 1000 }}s (max 100)</p>
-          <p class="price" :class="{ 'disabled': money < (400 + (adLevel * 200)) || audience >= capacity }">${{ (400 + (adLevel * 200)).toLocaleString() }}</p>
+          <p class="price" :class="{ 'disabled': money < (100 * Math.pow(10, adLevel)) || audience >= capacity }">${{ (100 * Math.pow(10, adLevel)).toLocaleString() }}</p>
         </section>
 
         <section class="upgrade" @click="buyEquipment">
@@ -254,7 +252,7 @@ onUnmounted(() => {
 
         <section class="upgrade" @click="buyTickets">
           <h3><i class="fa-solid fa-ticket"></i> Dražší lístky</h3>
-          <p class="desc">+{{ Math.floor(1 + (ticketPrice - 1) * 6) }}$ / lístek (max 7000)</p>
+          <p class="desc">+{{ (1 + (ticketPrice - 1) * 6).toFixed(1) }}$ / lístek (max 7000)</p>
           <p class="price" :class="{ 'disabled': money < (500 + ((ticketPrice - 1) * 250)) }">${{ (500 + ((ticketPrice - 1) * 250)).toLocaleString() }}</p>
         </section>
       </aside>
@@ -303,7 +301,7 @@ onUnmounted(() => {
         <h2>Přehled</h2>
         <table>
           <tbody>
-            <tr>
+            <tr> 
               <td>Investoři</td>
               <td>{{ investors }}</td>
             </tr>
