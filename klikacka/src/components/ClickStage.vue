@@ -69,6 +69,69 @@ const bossBarHint = computed(() => {
 const bossBarAlert = computed(() => !props.bossActive && props.bossNextInSeconds > 0 && props.bossNextInSeconds <= 10)
 
 const visibleAudienceCount = computed(() => props.displayAudience.filter((member) => member.active).length)
+const hasExtendedKeyboard = computed(() => props.unlockedSongNames.length > 1)
+
+const BASE_KEYBOARD_ROWS = [
+  [
+    { key: 'Z', note: 'C3' },
+    { key: 'X', note: 'D3' },
+    { key: 'C', note: 'E3' },
+    { key: 'V', note: 'F3' },
+    { key: 'B', note: 'G3' },
+    { key: 'N', note: 'A3' },
+    { key: 'M', note: 'B3' }
+  ],
+  [
+    { key: 'A', note: 'C4' },
+    { key: 'S', note: 'D4' },
+    { key: 'D', note: 'E4' },
+    { key: 'F', note: 'F4' },
+    { key: 'G', note: 'G4' },
+    { key: 'H', note: 'A4' },
+    { key: 'J', note: 'B4' },
+    { key: 'K', note: 'C5' }
+  ]
+]
+
+const EXTENDED_KEYBOARD_ROWS = [
+  [
+    { key: '1', note: 'C#3' },
+    { key: '2', note: 'D#3' },
+    { key: '3', note: 'F#3' },
+    { key: '4', note: 'G#3' },
+    { key: '5', note: 'A#3' },
+    { key: '6', note: 'C#4' },
+    { key: '7', note: 'D#4' },
+    { key: '8', note: 'F#4' },
+    { key: '9', note: 'G#4' },
+    { key: '0', note: 'A#4' }
+  ],
+  [
+    { key: 'Q', note: 'C5' },
+    { key: 'W', note: 'D5' },
+    { key: 'E', note: 'E5' },
+    { key: 'R', note: 'F5' },
+    { key: 'T', note: 'G5' },
+    { key: 'Y', note: 'A5' },
+    { key: 'U', note: 'B5' },
+    { key: 'I', note: 'C#5' },
+    { key: 'O', note: 'D#5' },
+    { key: 'P', note: 'F#5' },
+    { key: '[', note: 'G#5' },
+    { key: ']', note: 'A#5' }
+  ],
+  [
+    { key: 'Shift+Z', note: 'C6' },
+    { key: 'Shift+X', note: 'D6' },
+    { key: 'Shift+C', note: 'E6' },
+    { key: 'Shift+V', note: 'F6' },
+    { key: 'Shift+B', note: 'G6' },
+    { key: 'Shift+N', note: 'A6' },
+    { key: 'Shift+M', note: 'B6' },
+    { key: 'Shift+K', note: 'C2' },
+    { key: 'Shift+L', note: 'D2' }
+  ]
+]
 </script>
 
 <template>
@@ -169,6 +232,51 @@ const visibleAudienceCount = computed(() => props.displayAudience.filter((member
       <p class="boss-progress-label" :class="{ alert: bossBarAlert }">{{ bossBarHint }}</p>
       <div class="boss-progress-track" :class="{ active: bossActive }">
         <span :style="{ width: bossBarProgress + '%' }"></span>
+      </div>
+    </section>
+
+    <section class="keyboard-guide" aria-label="QWERTZ mapa kláves pro piano">
+      <div class="keyboard-guide-header">
+        <h3><i class="fa-solid fa-keyboard"></i> Piano ovládání (QWERTZ)</h3>
+        <span class="guide-badge" :class="{ on: hasExtendedKeyboard }">
+          {{ hasExtendedKeyboard ? 'Rozšířené noty: ZAPNUTO' : 'Rozšířené noty: koupíš první písničkou' }}
+        </span>
+      </div>
+
+      <p class="keyboard-guide-help">
+        Stiskni klávesu na klávesnici a přehraje se stejná nota. Aktivní nota se níže zvýrazní.
+      </p>
+
+      <div class="keyboard-layout-grid">
+        <div class="key-map-card">
+          <p class="key-map-title">Základní noty</p>
+          <div class="key-map-row" v-for="(row, rowIndex) in BASE_KEYBOARD_ROWS" :key="`base-${rowIndex}`">
+            <div
+              v-for="item in row"
+              :key="item.key + item.note"
+              class="key-map-item"
+              :class="{ active: lastPressedNote === item.note }"
+            >
+              <span class="key-map-key">{{ item.key }}</span>
+              <span class="key-map-note">{{ item.note }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="key-map-card" :class="{ locked: !hasExtendedKeyboard }">
+          <p class="key-map-title">Rozšířené noty (půltóny a vyšší oktávy)</p>
+          <div class="key-map-row" v-for="(row, rowIndex) in EXTENDED_KEYBOARD_ROWS" :key="`ext-${rowIndex}`">
+            <div
+              v-for="item in row"
+              :key="item.key + item.note"
+              class="key-map-item extended"
+              :class="{ active: lastPressedNote === item.note }"
+            >
+              <span class="key-map-key">{{ item.key }}</span>
+              <span class="key-map-note">{{ item.note }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -472,6 +580,139 @@ const visibleAudienceCount = computed(() => props.displayAudience.filter((member
 .piano-key.active .note-name,
 .piano-key.active .key-label {
   color: #fff;
+}
+
+.keyboard-guide {
+  width: 100%;
+  max-width: 900px;
+  margin: 2px 0 14px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.86), rgba(30, 41, 59, 0.74));
+  box-shadow: inset 0 0 16px rgba(15, 23, 42, 0.45);
+}
+
+.keyboard-guide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.keyboard-guide h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+}
+
+.guide-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(251, 191, 36, 0.16);
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  color: #fde68a;
+}
+
+.guide-badge.on {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.keyboard-guide-help {
+  margin: 8px 0 12px;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+}
+
+.keyboard-layout-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.key-map-card {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.5);
+  padding: 10px;
+}
+
+.key-map-card.locked {
+  opacity: 0.62;
+}
+
+.key-map-title {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.key-map-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.key-map-row + .key-map-row {
+  margin-top: 6px;
+}
+
+.key-map-item {
+  min-width: 62px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.65);
+  padding: 5px 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.key-map-item.extended {
+  border-color: rgba(167, 139, 250, 0.38);
+}
+
+.key-map-key {
+  font-size: 0.69rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.key-map-note {
+  font-size: 0.68rem;
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.key-map-item.active {
+  border-color: #fb7185;
+  background: rgba(244, 63, 94, 0.25);
+  box-shadow: 0 0 12px rgba(251, 113, 133, 0.35);
+}
+
+@media (max-width: 680px) {
+  .keyboard-guide {
+    padding: 10px;
+  }
+
+  .key-map-item {
+    min-width: 56px;
+  }
+
+  .key-map-key {
+    font-size: 0.64rem;
+  }
+
+  .key-map-note {
+    font-size: 0.62rem;
+  }
 }
 
 .audience-member.active {
