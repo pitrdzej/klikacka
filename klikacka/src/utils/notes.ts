@@ -36,7 +36,7 @@ let notesMuted = false
 
 function getAudio(note: string): HTMLAudioElement {
   if (!audioCache[note]) {
-    audioCache[note] = new Audio(`/sounds/${encodeURIComponent(note)}.mp3`)
+    audioCache[note] = new Audio(`sounds/${encodeURIComponent(note)}.mp3`)
   }
   return audioCache[note]
 }

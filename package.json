@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "deploy": "cd klikacka && npm run build && cd .. && cp klikacka/dist/index.html index.html && rm -rf assets && cp -r klikacka/dist/assets assets"
+    "deploy": "cd klikacka && npm run build && cd .. && cp klikacka/dist/index.html index.html && rm -rf assets sounds bosses && cp -r klikacka/dist/assets assets && cp -r klikacka/dist/sounds sounds && cp -r klikacka/dist/bosses bosses && cp klikacka/dist/favicon.ico favicon.ico"
   },
   "dependencies": {
     "vue": "^3.5.30"
