@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { roundDownToHalf } from '@/utils/number'
-import { playNote, keyToNote } from '@/utils/notes'
+import { playNote, keyToNote, EXTENDED_NOTE_KEYS } from '@/utils/notes'
 
 type FloatingText = { id: number; x: number; y: number; amount: number }
 type AudienceMember = { id: number; joinTime: number; leaveTime: number; hue: number }
@@ -94,7 +94,7 @@ const SONGS: Song[] = [
         melody: [
             'C4', 'D4', 'E4', 'F4',
             'G4', 'G4', 'A4', 'A4',
-            'G4', 'A4', 'A4', 'G4', 
+            'G4', 'A4', 'A4', 'G4',
             'F4', 'F4', 'F4', 'F4',
             'E4', 'E4', 'D4', 'D4',
             'G4', 'F4', 'F4', 'F4', 'F4',
@@ -115,16 +115,23 @@ const SONGS: Song[] = [
         ]
     },
     {
-        name: 'Shape of you',
+        name: 'Shape of You',
         melody: [
             'D4', 'F4', 'D4', 'D4',
             'F4', 'D4', 'D4', 'F4',
-            'D4', 'E4', 'D4', 'C4',
-
-
+            'D4', 'E4', 'D4', 'C4'
+        ]
+    },
+    {
+        name: 'Levitating',
+        melody: [
+            'F#4', 'F#4', 'F#4', 'F#4',
+            'A4',  'A4',  'G4',  'G4',  'G4',  'F#4', 'F#4', 'F#4',
+            'A4',  'A4',  'G4',  'G4',  'G4',  'F#4', 'F#4', 'F#4',
+            'D#4', 'D#4', 'C#4', 'C#4', 'C#4',
+            'F#4', 'F#4', 'E4'
         ]
     }
-    
 ]
 
 const DEFAULT_SONG: Song = {
@@ -165,7 +172,7 @@ export function useGameState() {
     const equipmentCost = computed<number>(() => scaledCost(220, 1.3, equipment.value - 1))
     const ticketLevel = computed<number>(() => Math.max(0, Math.floor((ticketPrice.value - 1) / 2)))
     const ticketsCost = computed<number>(() => scaledCost(620, 1.24, ticketLevel.value))
-    const nextSongCost = computed<number>(() => scaledCost(1200, 8.5, songLevel.value))
+    const nextSongCost = computed<number>(() => scaledCost(1200, 5, songLevel.value))
     const hasNextSong = computed<boolean>(() => songLevel.value < SONGS.length - 1)
     const unlockedSongNames = computed<string[]>(() => {
         const maxUnlocked = Math.min(songLevel.value, SONGS.length - 1)
@@ -202,19 +209,19 @@ export function useGameState() {
     })
 
     const audienceIncome = computed<number>(() => {
-        const raw = audience.value * (1 + (ticketPrice.value - 1) * 12)
+        const raw = audience.value * (40 + (ticketPrice.value - 1) * 15)
         return roundDownToHalf(raw)
     })
 
     const ticketIncomePerPerson = computed<number>(() => {
-        const raw = 1 + (ticketPrice.value - 1) * 12
+        const raw = 40 + (ticketPrice.value - 1) * 15
         return roundDownToHalf(raw)
     })
 
     const ticketIncomeIncreasePerUpgrade = computed<number>(() => {
         const nextTicketPrice = ticketPrice.value + 2
-        const nextIncome = 1 + (nextTicketPrice - 1) * 12
-        const currentIncome = 1 + (ticketPrice.value - 1) * 12
+        const nextIncome = 40 + (nextTicketPrice - 1) * 15
+        const currentIncome = 40 + (ticketPrice.value - 1) * 15
         return roundDownToHalf(nextIncome - currentIncome)
     })
 
@@ -518,7 +525,10 @@ export function useGameState() {
         if (event.repeat) return
         if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) return
 
-        const note = keyToNote(event.key)
+        const note =
+            songLevel.value > 0
+                ? (EXTENDED_NOTE_KEYS[event.key] ?? keyToNote(event.key))
+                : keyToNote(event.key)
         if (!note) return
 
         playNote(note as string)

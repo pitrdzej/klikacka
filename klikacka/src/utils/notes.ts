@@ -7,6 +7,30 @@ const NOTE_KEYS: Record<string, string> = {
   k: 'C5'
 }
 
+// Rozšířené mapování – odemkne se s první kouptenou písničkou
+// Čísla = půltóny C3–A#4, horní řada (q–p) = C5–A#5, a [ ] = B5 C6
+// Shift + původní klávesy = o oktávu výš (C4→C5 atd.)
+export const EXTENDED_NOTE_KEYS: Record<string, string> = {
+  // zachová základní
+  z: 'C3', x: 'D3', c: 'E3', v: 'F3', b: 'G3', n: 'A3', m: 'B3',
+  a: 'C4', s: 'D4', d: 'E4', f: 'F4', g: 'G4', h: 'A4', j: 'B4',
+  k: 'C5',
+  // čísla = půltóny (sharpy) přes C3–A#4
+  '1': 'C#3', '2': 'D#3', '3': 'F#3', '4': 'G#3', '5': 'A#3',
+  '6': 'C#4', '7': 'D#4', '8': 'F#4', '9': 'G#4', '0': 'A#4',
+  // horní klávesová řada = C5–B5
+  q: 'C5', w: 'D5', e: 'E5', r: 'F5', t: 'G5', y: 'A5', u: 'B5',
+  // půltóny C5–A#5
+  i: 'C#5', o: 'D#5', p: 'F#5',
+  // C6 a výše
+  '[': 'G#5', ']': 'A#5',
+  // další oktáva klávesy Shift+základní = C6–B6 (nahoře)
+  'Z': 'C6', 'X': 'D6', 'C': 'E6', 'V': 'F6', 'B': 'G6', 'N': 'A6', 'M': 'B6',
+  'A': 'C5', 'S': 'D5', 'D': 'E5', 'F': 'F5', 'G': 'G5', 'H': 'A5', 'J': 'B5',
+  // nízká oktáva
+  'K': 'C2', 'L': 'D2',
+}
+
 const audioCache: Record<string, HTMLAudioElement> = {}
 let notesMuted = false
 

@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "deploy": "cd klikacka && npm run build && cd .. && cp klikacka/dist/index.html index.html && rm -rf assets && cp -r klikacka/dist/assets assets"
+  },
   "dependencies": {
     "vue": "^3.5.30"
   }

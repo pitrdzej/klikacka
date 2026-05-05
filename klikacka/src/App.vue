@@ -74,6 +74,13 @@ const {
 const isMusicMuted = ref<boolean>(localStorage.getItem('musicMuted') === '1')
 setNotesMuted(isMusicMuted.value)
 
+const saveFlash = ref<boolean>(false)
+function handleSave(): void {
+  saveGame()
+  saveFlash.value = true
+  setTimeout(() => { saveFlash.value = false }, 1500)
+}
+
 function toggleMusicMute(): void {
   isMusicMuted.value = !isMusicMuted.value
   setNotesMuted(isMusicMuted.value)
@@ -93,7 +100,10 @@ function toggleMusicMute(): void {
         <a @click="toggleMusicMute" :title="isMusicMuted ? 'Zapnout hudbu' : 'Vypnout hudbu'">
           <i :class="isMusicMuted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high'"></i>
         </a>
-        <a @click="saveGame" title="Uložit hru"><i class="fa-solid fa-save"></i></a>
+        <a @click="handleSave" title="Uložit hru" :class="{ 'save-flash': saveFlash }">
+          <i class="fa-solid fa-save"></i>
+          <span v-if="saveFlash" class="save-label">Uloženo!</span>
+        </a>
         <a><i class="fa-solid fa-gear"></i></a>
       </nav>
     </header>
@@ -175,3 +185,17 @@ function toggleMusicMute(): void {
     </main>
   </div>
 </template>
+
+<style scoped>
+.save-flash {
+  color: #4caf50 !important;
+  transition: color 0.2s;
+}
+.save-label {
+  font-size: 0.7rem;
+  margin-left: 4px;
+  font-weight: bold;
+  color: #4caf50;
+  vertical-align: middle;
+}
+</style>
