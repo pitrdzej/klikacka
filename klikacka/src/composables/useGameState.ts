@@ -54,16 +54,16 @@ const AUDIENCE_BASE_STAY_SECONDS = 120
 const AUDIENCE_STAY_STEP_LEVELS = 5
 
 const BOSS_ROSTER: BossProfile[] = [
-    { name: 'Tomáš Klus', fame: 1.0, image: '/bosses/TomasKlus.jpg' },
-    { name: 'Yzomandias', fame: 1.15, image: '/bosses/Yzomandias.jpg' },
-    { name: 'Dua Lipa', fame: 1.3, image: '/bosses/DuaLipa.jpg' },
-    { name: 'Ed Sheeran', fame: 1.45, image: '/bosses/EdSheeran.jpg' },
-    { name: 'Billie Eilish', fame: 1.6, image: '/bosses/Billie.jpg' },
-    { name: 'Hana Zagorová', fame: 1.75, image: '/bosses/HanaZagorova.jpg' },
-    { name: 'Jan Kafka', fame: 1.9, image: '/bosses/JanKafka.jpg' }
+    { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' },
+    { name: 'Yzomandias', fame: 1.15, image: 'bosses/Yzomandias.jpg' },
+    { name: 'Dua Lipa', fame: 1.3, image: 'bosses/DuaLipa.jpg' },
+    { name: 'Ed Sheeran', fame: 1.45, image: 'bosses/EdSheeran.jpg' },
+    { name: 'Billie Eilish', fame: 1.48, image: 'bosses/Billie.jpg' },
+    { name: 'Hana Zagorová', fame: 1.5, image: 'bosses/HanaZagorova.jpg' },
+    { name: 'Jan Kafka', fame: 1.6, image: 'bosses/JanKafka.jpg' }
 ]
 
-const DEFAULT_BOSS: BossProfile = { name: 'Tomáš Klus', fame: 1.0, image: '/bosses/TomasKlus.jpg' }
+const DEFAULT_BOSS: BossProfile = { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' }
 
 const SONGS: Song[] = [
     {

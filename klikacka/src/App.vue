@@ -81,6 +81,11 @@ function handleSave(): void {
   setTimeout(() => { saveFlash.value = false }, 1500)
 }
 
+const showKeyboardHelp = ref<boolean>(false)
+function toggleKeyboardHelp(): void {
+  showKeyboardHelp.value = !showKeyboardHelp.value
+}
+
 function toggleMusicMute(): void {
   isMusicMuted.value = !isMusicMuted.value
   setNotesMuted(isMusicMuted.value)
@@ -99,6 +104,15 @@ function toggleMusicMute(): void {
       <nav>
         <a @click="toggleMusicMute" :title="isMusicMuted ? 'Zapnout hudbu' : 'Vypnout hudbu'">
           <i :class="isMusicMuted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high'"></i>
+        </a>
+        <a
+          class="help-toggle"
+          @click="toggleKeyboardHelp"
+          :title="showKeyboardHelp ? 'Skrýt nápovědu kláves' : 'Zobrazit nápovědu kláves'"
+          :aria-pressed="showKeyboardHelp"
+        >
+          <i class="fa-solid fa-keyboard"></i>
+          <span class="help-tooltip">{{ showKeyboardHelp ? 'Skrýt nápovědu kláves' : 'Zobrazit nápovědu kláves' }}</span>
         </a>
         <a @click="handleSave" title="Uložit hru" :class="{ 'save-flash': saveFlash }">
           <i class="fa-solid fa-save"></i>
@@ -163,6 +177,7 @@ function toggleMusicMute(): void {
         :boss-bar-visible-seconds="bossBarVisibleSeconds"
         :boss-warning-text="bossWarningText"
         :last-pressed-note="lastPressedNote"
+        :show-keyboard-help="showKeyboardHelp"
         @sing="sing"
         @select-song="selectSong"
       />
@@ -197,5 +212,37 @@ function toggleMusicMute(): void {
   font-weight: bold;
   color: #4caf50;
   vertical-align: middle;
+}
+
+.help-toggle {
+  position: relative;
+}
+
+.help-toggle[aria-pressed='true'] {
+  color: #7dd3fc !important;
+}
+
+.help-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.help-toggle:hover .help-tooltip,
+.help-toggle:focus-visible .help-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
