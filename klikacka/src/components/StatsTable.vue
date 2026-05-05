@@ -7,7 +7,9 @@ defineProps<{
   audience: number
   capacity: number
   equipment: number
-  ticketPrice: number
+  ticketIncomePerPerson: number
+  clickPower: number
+  audienceStaySeconds: number
   investorIncome: number
   investorIncomeIntervalSeconds: number
   audienceIncome: number
@@ -37,8 +39,16 @@ defineProps<{
           <td>{{ equipment }}</td>
         </tr>
         <tr>
-          <td>Cena lístku</td>
-          <td>{{ formatHalfStep(ticketPrice) }}$</td>
+          <td>Výdělek za 1 lístek</td>
+          <td>{{ formatHalfStep(ticketIncomePerPerson) }}$</td>
+        </tr>
+        <tr>
+          <td>Výdělek za 1 klik</td>
+          <td>{{ formatHalfStep(clickPower) }}$</td>
+        </tr>
+        <tr>
+          <td>Publikum zůstává</td>
+          <td>{{ formatHalfStep(audienceStaySeconds) }}s</td>
         </tr>
         <tr>
           <td>Příjem od investorů</td>
