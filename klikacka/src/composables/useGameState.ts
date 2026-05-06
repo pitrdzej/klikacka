@@ -34,8 +34,10 @@ type BossProfile = {
 
 type BossResultTone = 'success' | 'error'
 
-const OFFLINE_MULTIPLIER = 0.02
-const MAX_OFFLINE_SECONDS = 60 * 60 * 12
+const OFFLINE_BASE_MULTIPLIER = 0.04
+const OFFLINE_MAX_MULTIPLIER = 0.24
+const OFFLINE_BASE_MAX_SECONDS = 60 * 60 * 8
+const OFFLINE_HARD_MAX_SECONDS = 60 * 60 * 24
 const MIN_OFFLINE_REWARD_SECONDS = 60 * 60
 const BOSS_MIN_DELAY_MS = 90_000
 const BOSS_MAX_DELAY_MS = 180_000
@@ -355,12 +357,34 @@ export function useGameState() {
         const rawOfflineSeconds = diffMs / 1000
         if (rawOfflineSeconds < MIN_OFFLINE_REWARD_SECONDS) return
 
-        const clampedSeconds = Math.min(rawOfflineSeconds, MAX_OFFLINE_SECONDS)
+        const progressionLevel =
+            investors.value +
+            adLevel.value +
+            equipment.value +
+            ticketLevel.value * 2 +
+            songLevel.value * 4 +
+            bossWins.value * 3
+
+        const dynamicMaxOfflineSeconds = Math.min(
+            OFFLINE_BASE_MAX_SECONDS + progressionLevel * 60 * 6,
+            OFFLINE_HARD_MAX_SECONDS
+        )
+
+        const clampedSeconds = Math.min(rawOfflineSeconds, dynamicMaxOfflineSeconds)
         offlineSeconds.value = clampedSeconds
+
         const passivePerSecond =
             investorIncome.value / investorIncomeIntervalSeconds.value +
             audienceIncome.value / audienceIncomeIntervalSeconds.value
-        const reward = roundDownToHalf(passivePerSecond * clampedSeconds * OFFLINE_MULTIPLIER)
+
+        const moneyLevelBoost = Math.log10(Math.max(10, money.value + 10)) * 0.01
+        const progressionBoost = Math.min(0.16, progressionLevel * 0.0018)
+        const offlineMultiplier = Math.min(
+            OFFLINE_MAX_MULTIPLIER,
+            OFFLINE_BASE_MULTIPLIER + progressionBoost + moneyLevelBoost
+        )
+
+        const reward = roundDownToHalf(passivePerSecond * clampedSeconds * offlineMultiplier)
 
         if (reward < 0.5) return
 
