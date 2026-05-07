@@ -4,6 +4,8 @@ import { playNote, keyToNote, extendedKeyToNote } from '@/utils/notes'
 
 type FloatingText = { id: number; x: number; y: number; amount: number }
 type AudienceMember = { id: number; joinTime: number; leaveTime: number; hue: number }
+type BoostType = 'click' | 'investor' | 'audience'
+type BoostClaimMilestones = Record<BoostType, number>
 type GameState = {
     money?: number
     investors?: number
@@ -18,6 +20,11 @@ type GameState = {
     pendingBoss?: BossProfile
     pendingBossRemainingMs?: number
     audienceMembers?: AudienceMember[]
+    availableBoosts?: BoostType[]
+    unlockedBoosts?: BoostType[]
+    boostClaimMilestones?: Partial<BoostClaimMilestones>
+    activeBoost?: BoostType
+    boostRemainingMs?: number
     lastSeenAt?: number
 }
 
@@ -40,9 +47,10 @@ const OFFLINE_BASE_MAX_SECONDS = 60 * 60 * 8
 const OFFLINE_HARD_MAX_SECONDS = 60 * 60 * 24
 const MIN_OFFLINE_REWARD_SECONDS = 60 * 60
 const SAVE_DEBOUNCE_MS = 500
+const BOOST_DURATION_SECONDS = 60
 const BOSS_MIN_DELAY_MS = 90_000
 const BOSS_MAX_DELAY_MS = 180_000
-const BOSS_DURATION_SECONDS = 20
+const BOSS_DURATION_SECONDS = 23
 const BOSS_WARNING_WINDOW_SECONDS = 60
 const BOSS_BAR_VISIBLE_SECONDS = 30
 const PLAYER_INACTIVE_MS = 15_000
@@ -167,6 +175,15 @@ export function useGameState() {
     const adLevel = ref<number>(0)
     const songLevel = ref<number>(0)
     const selectedSongIndex = ref<number>(0)
+    const availableBoosts = ref<BoostType[]>([])
+    const boostClaimMilestones = ref<BoostClaimMilestones>({
+        click: 0,
+        investor: 0,
+        audience: 0
+    })
+    const activeBoost = ref<BoostType | null>(null)
+    const boostRewardPending = ref<boolean>(false)
+    const boostTimeLeftSeconds = ref<number>(0)
 
     function calculateClickPower(equipmentLevel: number): number {
         if (equipmentLevel <= 1) return 1
@@ -178,7 +195,11 @@ export function useGameState() {
         return roundDownToHalf(raw)
     }
 
-    const clickPower = computed<number>(() => calculateClickPower(equipment.value))
+    const baseClickPower = computed<number>(() => calculateClickPower(equipment.value))
+    const clickPower = computed<number>(() => {
+        const multiplier = activeBoost.value === 'click' ? 2 : 1
+        return roundDownToHalf(baseClickPower.value * multiplier)
+    })
 
     function scaledCost(base: number, growth: number, level: number): number {
         const safeLevel = Math.max(0, level)
@@ -242,7 +263,7 @@ export function useGameState() {
         return roundDownToHalf(raw)
     })
 
-    const investorIncomeIntervalSeconds = computed<number>(() => 2)
+    const investorIncomeIntervalSeconds = computed<number>(() => activeBoost.value === 'investor' ? 1 : 2)
     const audienceJoinDelaySeconds = computed<number>(() => {
         const reduction = Math.floor(adLevel.value / AUDIENCE_JOIN_DELAY_STEP_LEVELS)
         return Math.max(AUDIENCE_BASE_JOIN_DELAY_SECONDS - reduction, AUDIENCE_MIN_JOIN_DELAY_SECONDS)
@@ -251,25 +272,41 @@ export function useGameState() {
         const reduction = Math.floor(adLevel.value / AUDIENCE_INCOME_STEP_LEVELS)
         return Math.max(AUDIENCE_BASE_INCOME_INTERVAL_SECONDS - reduction, AUDIENCE_MIN_INCOME_INTERVAL_SECONDS)
     })
-    const audienceStaySeconds = computed<number>(() => {
-        const bonus = Math.floor(adLevel.value / AUDIENCE_STAY_STEP_LEVELS)
-        return AUDIENCE_BASE_STAY_SECONDS + bonus
+    const audienceBaseStaySeconds = computed<number>(() => {
+        const level = Math.max(0, adLevel.value)
+        const linear = level * 2.2
+        const scaling = Math.pow(level, 1.22) * 1.8
+        const raw = AUDIENCE_BASE_STAY_SECONDS + linear + scaling
+        return Math.floor(Math.min(raw, 620))
     })
 
+    const audienceStaySeconds = computed<number>(() => {
+        const multiplier = activeBoost.value === 'audience' ? 2 : 1
+        return Math.floor(audienceBaseStaySeconds.value * multiplier)
+    })
+
+    function calculateTicketIncomePerPerson(price: number): number {
+        const level = Math.max(0, Math.floor((price - 1) / 2))
+        const linear = 40 + level * 32
+        const surgeLevel = Math.max(0, level - 2)
+        const surge = Math.pow(surgeLevel, 1.8) * 16
+        const audienceBoostMultiplier = activeBoost.value === 'audience' ? 2 : 1
+        return roundDownToHalf((linear + surge) * audienceBoostMultiplier)
+    }
+
     const audienceIncome = computed<number>(() => {
-        const raw = audience.value * (40 + (ticketPrice.value - 1) * 15)
+        const raw = audience.value * calculateTicketIncomePerPerson(ticketPrice.value)
         return roundDownToHalf(raw)
     })
 
     const ticketIncomePerPerson = computed<number>(() => {
-        const raw = 40 + (ticketPrice.value - 1) * 15
-        return roundDownToHalf(raw)
+        return calculateTicketIncomePerPerson(ticketPrice.value)
     })
 
     const ticketIncomeIncreasePerUpgrade = computed<number>(() => {
         const nextTicketPrice = ticketPrice.value + 2
-        const nextIncome = 40 + (nextTicketPrice - 1) * 15
-        const currentIncome = 40 + (ticketPrice.value - 1) * 15
+        const nextIncome = calculateTicketIncomePerPerson(nextTicketPrice)
+        const currentIncome = calculateTicketIncomePerPerson(ticketPrice.value)
         return roundDownToHalf(nextIncome - currentIncome)
     })
 
@@ -312,6 +349,7 @@ export function useGameState() {
     let inactivityInterval: ReturnType<typeof setInterval> | null = null
     let bossResultTimeout: ReturnType<typeof setTimeout> | null = null
     let lastAudienceIncomeAt = Date.now()
+    let lastInvestorIncomeAt = Date.now()
     let bossEndsAt = 0
     let bossNextSpawnAt = 0
     let bossSpawnDelayMs = 0
@@ -320,16 +358,113 @@ export function useGameState() {
     let restoredPendingBossRemainingMs: number | null = null
     let saveTimeout: ReturnType<typeof setTimeout> | null = null
     let lastSavedState = ''
+    let boostExpiresAt = 0
+    function isBoostAvailable(type: BoostType): boolean {
+        return availableBoosts.value.includes(type)
+    }
+
+    function grantBoost(type: BoostType): void {
+        if (isBoostAvailable(type)) return
+        availableBoosts.value = [...availableBoosts.value, type]
+    }
+
+    function updateBoostCountdown(): void {
+        if (!activeBoost.value || boostExpiresAt <= 0) {
+            boostTimeLeftSeconds.value = 0
+            return
+        }
+
+        const remainingMs = boostExpiresAt - Date.now()
+        if (remainingMs <= 0) {
+            activeBoost.value = null
+            boostExpiresAt = 0
+            boostTimeLeftSeconds.value = 0
+            scheduleSaveGame()
+            return
+        }
+
+        boostTimeLeftSeconds.value = Math.max(0, Math.ceil(remainingMs / 1000))
+    }
+
+    function activateBoost(type: BoostType): void {
+        if (!isBoostAvailable(type)) return
+
+        availableBoosts.value = availableBoosts.value.filter((boost) => boost !== type)
+        activeBoost.value = type
+        boostExpiresAt = Date.now() + BOOST_DURATION_SECONDS * 1000
+        boostTimeLeftSeconds.value = BOOST_DURATION_SECONDS
+
+        if (type === 'audience') {
+            const extensionMs = audienceBaseStaySeconds.value * 1000
+            audienceMembers.value = audienceMembers.value.map((member) => ({
+                ...member,
+                leaveTime: member.leaveTime + extensionMs
+            }))
+        }
+
+        scheduleSaveGame()
+    }
+
+    function maybeGrantMilestoneBoost(type: BoostType, level: number): boolean {
+        const milestone = Math.floor(level / 5) * 5
+        const claimedMilestone = boostClaimMilestones.value[type] ?? 0
+        if (milestone < 5 || milestone <= claimedMilestone) return false
+
+        grantBoost(type)
+        boostClaimMilestones.value = {
+            ...boostClaimMilestones.value,
+            [type]: milestone
+        }
+        return true
+    }
+
+    function maybeUnlockProgressBoosts(): boolean {
+        const equipmentGranted = maybeGrantMilestoneBoost('click', equipment.value)
+        const investorGranted = maybeGrantMilestoneBoost('investor', investors.value)
+        const audienceGranted = maybeGrantMilestoneBoost('audience', ticketLevel.value)
+        return equipmentGranted || investorGranted || audienceGranted
+    }
+
+    function claimBossRewardBoost(type: BoostType): void {
+        grantBoost(type)
+        boostRewardPending.value = false
+        scheduleSaveGame()
+    }
+
+    function boostLabel(type: BoostType): string {
+        if (type === 'click') return 'Klik x2'
+        if (type === 'investor') return 'Investor 1s'
+        return 'Publikum x2'
+    }
+
 
     const handleBeforeUnload = () => {
         saveGame()
     }
 
+    const handlePageHide = () => {
+        saveGame()
+    }
+
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') {
+            saveGame()
+        }
+    }
+
     function buildGameState() {
-        const pendingBossRemainingMs =
-            !bossActive.value && pendingBoss && bossNextSpawnAt > 0
-                ? Math.max(0, bossNextSpawnAt - Date.now())
-                : null
+        const activeBossProfile = bossActive.value
+            ? BOSS_ROSTER.find((boss) => boss.name === bossCurrentName.value)
+            : null
+
+        const pendingBossForSave = pendingBoss ?? activeBossProfile ?? undefined
+        const pendingBossRemainingMs = pendingBossForSave
+            ? (
+                !bossActive.value && bossNextSpawnAt > 0
+                    ? Math.max(0, bossNextSpawnAt - Date.now())
+                    : 1000
+            )
+            : null
 
         return {
             money: roundDownToHalf(money.value),
@@ -342,9 +477,13 @@ export function useGameState() {
             songLevel: songLevel.value,
             selectedSongIndex: selectedSongIndex.value,
             bossWins: bossWins.value,
-            pendingBoss: pendingBoss ?? undefined,
+            pendingBoss: pendingBossForSave,
             pendingBossRemainingMs: pendingBossRemainingMs ?? undefined,
             audienceMembers: audienceMembers.value,
+            availableBoosts: availableBoosts.value,
+            boostClaimMilestones: boostClaimMilestones.value,
+            activeBoost: activeBoost.value ?? undefined,
+            boostRemainingMs: activeBoost.value ? Math.max(0, boostExpiresAt - Date.now()) : undefined,
             lastSeenAt: Date.now()
         }
     }
@@ -395,6 +534,27 @@ export function useGameState() {
                 songLevel.value
             )
             bossWins.value = Math.max(Number(gameState.bossWins) || 0, 0)
+            const savedBoosts = Array.isArray(gameState.availableBoosts)
+                ? gameState.availableBoosts
+                : Array.isArray(gameState.unlockedBoosts)
+                    ? gameState.unlockedBoosts
+                    : []
+            availableBoosts.value = savedBoosts.filter((boost): boost is BoostType =>
+                boost === 'click' || boost === 'investor' || boost === 'audience'
+            )
+            boostClaimMilestones.value = {
+                click: Math.max(0, Number(gameState.boostClaimMilestones?.click) || 0),
+                investor: Math.max(0, Number(gameState.boostClaimMilestones?.investor) || 0),
+                audience: Math.max(0, Number(gameState.boostClaimMilestones?.audience) || 0)
+            }
+            activeBoost.value =
+                gameState.activeBoost === 'click' || gameState.activeBoost === 'investor' || gameState.activeBoost === 'audience'
+                    ? gameState.activeBoost
+                    : null
+            boostExpiresAt = activeBoost.value
+                ? Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingMs) || 0))
+                : 0
+            updateBoostCountdown()
             restoredPendingBoss =
                 gameState.pendingBoss &&
                 typeof gameState.pendingBoss.name === 'string' &&
@@ -627,7 +787,7 @@ export function useGameState() {
         const note =
             songLevel.value > 0
                 ? extendedKeyToNote(event.key, event.code)
-                : keyToNote(event.key)
+                : keyToNote(event.key, event.code)
         if (!note) return
 
         playNote(note as string)
@@ -741,7 +901,7 @@ export function useGameState() {
             35,
             Math.min(260, Math.floor(baseRequired * profile.fame * luckFactor))
         )
-        const durationSeconds = Math.max(12, Math.min(22, Math.floor(BOSS_DURATION_SECONDS + (1.15 - luckFactor) * 8)))
+        const durationSeconds = 21 + Math.floor(Math.random() * 6)
 
         if (!isPlayerActive()) {
             setBossReengageGate('Nejsi aktivní.')
@@ -796,6 +956,7 @@ export function useGameState() {
 
         if (won) {
             bossWins.value++
+            boostRewardPending.value = true
             if (defeatedName === 'Jan Kafka' && Math.random() < JAN_KAFKA_WIN_STEAL_CHANCE) {
                 const kafkaPenalty = roundDownToHalf(money.value / 3)
                 if (kafkaPenalty > 0) {
@@ -840,6 +1001,7 @@ export function useGameState() {
         if (!spendMoney(investorCost.value)) return
 
         investors.value++
+        maybeUnlockProgressBoosts()
         scheduleSaveGame()
     }
 
@@ -879,6 +1041,7 @@ export function useGameState() {
         if (!spendMoney(equipmentCost.value)) return
 
         equipment.value++
+        maybeUnlockProgressBoosts()
         scheduleSaveGame()
     }
 
@@ -894,6 +1057,7 @@ export function useGameState() {
         if (!spendMoney(ticketsCost.value)) return
 
         ticketPrice.value += 2
+        maybeUnlockProgressBoosts()
         scheduleSaveGame()
     }
 
@@ -966,17 +1130,28 @@ export function useGameState() {
     onMounted(() => {
         const lastSeenAt = loadGame()
         applyOfflineEarnings(lastSeenAt)
+        if (maybeUnlockProgressBoosts()) {
+            scheduleSaveGame()
+        }
         lastAudienceIncomeAt = Date.now()
+        lastInvestorIncomeAt = Date.now()
 
         window.addEventListener('beforeunload', handleBeforeUnload)
+        window.addEventListener('pagehide', handlePageHide)
+        document.addEventListener('visibilitychange', handleVisibilityChange)
         window.addEventListener('keydown', handleKeyPress)
 
         investorInterval = setInterval(() => {
-            if (investorIncome.value > 0) {
+            const now = Date.now()
+            if (
+                investorIncome.value > 0 &&
+                now - lastInvestorIncomeAt >= investorIncomeIntervalSeconds.value * 1000
+            ) {
                 addMoney(investorIncome.value)
+                lastInvestorIncomeAt = now
                 scheduleSaveGame()
             }
-        }, investorIncomeIntervalSeconds.value * 1000)
+        }, 250)
 
         audienceIncomeInterval = setInterval(() => {
             const now = Date.now()
@@ -1002,6 +1177,7 @@ export function useGameState() {
             }
 
             updateBossIncomingCountdown()
+            updateBoostCountdown()
         }, 1000)
 
         if (restoredPendingBoss && restoredPendingBossRemainingMs !== null) {
@@ -1016,6 +1192,8 @@ export function useGameState() {
 
     onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload)
+        window.removeEventListener('pagehide', handlePageHide)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
         window.removeEventListener('keydown', handleKeyPress)
 
         if (investorInterval) clearInterval(investorInterval)
@@ -1031,6 +1209,72 @@ export function useGameState() {
         }
 
         saveGame()
+    })
+
+    const boostSlots = computed<Array<{
+        type: BoostType
+        label: string
+        icon: string
+        effect: string
+        tooltip: string
+        owned: boolean
+        active: boolean
+    }>>(() => {
+        return [
+            {
+                type: 'click',
+                label: 'Klik x2',
+                icon: 'fa-solid fa-hand-pointer',
+                effect: '+100 % za klik',
+                tooltip: 'Klik x2: dvojnásobný výdělek z každého kliku na 60 sekund.',
+                owned: isBoostAvailable('click'),
+                active: activeBoost.value === 'click'
+            },
+            {
+                type: 'investor',
+                label: 'Investor 1s',
+                icon: 'fa-solid fa-handshake',
+                effect: 'výplata každou 1 s',
+                tooltip: 'Investor 1s: investoři vyplácí příjem každou 1 sekundu po dobu 60 sekund.',
+                owned: isBoostAvailable('investor'),
+                active: activeBoost.value === 'investor'
+            },
+            {
+                type: 'audience',
+                label: 'Publikum x2',
+                icon: 'fa-solid fa-users',
+                effect: '2x lístky a výdrž',
+                tooltip: 'Publikum x2: lidé zůstanou 2x déle a lístky vydělají 2x víc po dobu 60 sekund.',
+                owned: isBoostAvailable('audience'),
+                active: activeBoost.value === 'audience'
+            }
+        ]
+    })
+
+    const boostRewardOptions = computed<Array<{ type: BoostType; label: string; icon: string; effect: string; description: string }>>(() => {
+        return [
+            {
+                type: 'click',
+                label: 'Klik x2',
+                icon: 'fa-solid fa-hand-pointer',
+                effect: '+100 % za klik',
+                description: 'Každý klik vydělá 2x víc peněz po dobu 60 sekund.'
+            },
+            {
+                type: 'investor',
+                label: 'Investor 1s',
+                icon: 'fa-solid fa-handshake',
+                effect: 'výplata každou 1 s',
+                description: 'Investoři budou posílat peníze každou 1 sekundu po dobu 60 sekund.'
+            },
+            {
+                type: 'audience',
+                label: 'Publikum x2',
+                icon: 'fa-solid fa-users',
+                effect: '2x lístky a výdrž',
+                description: 'Publikum vydělá 2x víc z lístků a vydrží 2x déle po dobu 60 sekund.'
+            }
+        ]
     })
 
     return {
@@ -1082,8 +1326,14 @@ export function useGameState() {
         bossWarningText,
         bossResultText,
         bossResultTone,
+        boostTimeLeftSeconds,
+        boostSlots,
+        boostRewardPending,
+        boostRewardOptions,
         displayAudience,
         audienceOverflow,
+        claimBossRewardBoost,
+        activateBoost,
         saveGame,
         sing,
         buyInvestor,
