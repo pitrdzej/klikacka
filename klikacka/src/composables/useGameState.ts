@@ -388,8 +388,7 @@ export function useGameState() {
         if (path.startsWith('/')) return path
 
         const cleanPath = path.replace(/^\/+/, '')
-        const baseTag = typeof document !== 'undefined' ? document.querySelector('base')?.getAttribute('href') : null
-        const base = baseTag || '/'
+        const base = (import.meta as unknown as { env: { BASE_URL: string } }).env?.BASE_URL ?? '/'
         return `${base}${cleanPath}`
     }
     function isBoostAvailable(type: BoostType): boolean {
