@@ -101,6 +101,16 @@ function toggleSettingsMenu(): void {
   showSettingsMenu.value = !showSettingsMenu.value
 }
 
+const showHelpModal = ref<boolean>(false)
+function openHelpModal(): void {
+  showHelpModal.value = true
+  showSettingsMenu.value = false
+}
+
+function closeHelpModal(): void {
+  showHelpModal.value = false
+}
+
 function scrollToSection(sectionId: 'shop-section' | 'stage-section' | 'stats-section'): void {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -157,6 +167,10 @@ function toggleMusicMute(): void {
           </a>
 
           <div v-if="showSettingsMenu" class="settings-menu">
+            <button class="settings-item" @click="openHelpModal">
+              <i class="fa-solid fa-circle-question"></i>
+              <span>Nápověda</span>
+            </button>
             <button class="settings-item" @click="toggleMusicMute">
               <i :class="isMusicMuted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high'"></i>
               <span>{{ isMusicMuted ? 'Zapnout hudbu' : 'Vypnout hudbu' }}</span>
@@ -173,6 +187,47 @@ function toggleMusicMute(): void {
         </div>
       </nav>
     </header>
+
+    <section v-if="showHelpModal" class="help-modal" aria-live="polite" @click.self="closeHelpModal">
+      <div class="help-modal-card">
+        <div class="help-modal-head">
+          <h3><i class="fa-solid fa-book"></i> Nápověda</h3>
+          <button class="help-close" @click="closeHelpModal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="help-modal-content">
+          <p>
+            Jsi pouliční zpěvák. Klikáním na stage získáváš peníze a rozjíždíš kariéru přes vylepšení,
+            publikum, investory, boss fighty a písničky.
+          </p>
+
+          <h4>Vylepšení</h4>
+          <ul>
+            <li><strong>Investor</strong> – pravidelný příjem. Boost zrychlí interval výplaty.</li>
+            <li><strong>Reklama</strong> – přivádí publikum. Diváci dávají pasivní příjem.</li>
+            <li><strong>Vybavení</strong> – zvyšuje zisk za klik.</li>
+            <li><strong>Sál</strong> – zvětšuje kapacitu publika za cenu investorů.</li>
+            <li><strong>Dražší lístky</strong> – zvyšují výdělek od publika.</li>
+          </ul>
+
+          <h4>Piano a písničky</h4>
+          <p>
+            Můžeš hrát na piano klávesnicí i klikáním. Odemknuté písničky si přepínáš na stage.
+          </p>
+
+          <h4>Bossové</h4>
+          <p>
+            Občas tě vyzvou rivalové. Musíš rychle klikat a porazit je dřív, než vyprší čas.
+            Za výhru dostaneš výběr boostu. Za prohru ztratíš část peněz a investorů.
+          </p>
+
+          <h4>Cíl hry</h4>
+          <p>
+            Vybudovat nejúspěšnější koncertní kariéru – maximalizovat příjmy, publikum i odemčené písničky.
+          </p>
+        </div>
+      </div>
+    </section>
 
     <section v-if="boostRewardPending && !boostRewardChooserOpen" class="boost-reward-banner" aria-live="polite">
       <div class="boost-reward-banner-card">
@@ -337,7 +392,7 @@ nav {
 }
 
 .mobile-header-links {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -345,6 +400,12 @@ nav {
 
 .header-center-links {
   justify-self: center;
+}
+
+#shop-section,
+#stage-section,
+#stats-section {
+  scroll-margin-top: 112px;
 }
 
 .settings-toggle {
@@ -560,6 +621,66 @@ nav {
 .help-toggle:focus-visible .help-tooltip {
   opacity: 1;
   transform: translateY(0);
+}
+
+.help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  background: rgba(2, 6, 23, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.help-modal-card {
+  width: min(760px, 100%);
+  max-height: min(78vh, 900px);
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(28, 25, 43, 0.96), rgba(17, 24, 39, 0.94));
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.45);
+  border: none;
+}
+
+.help-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.help-modal-head h3 {
+  margin: 0;
+}
+
+.help-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+}
+
+.help-modal-content {
+  overflow: auto;
+  max-height: calc(78vh - 72px);
+  padding: 0 16px 16px;
+  color: #e2e8f0;
+  line-height: 1.45;
+}
+
+.help-modal-content h4 {
+  margin: 12px 0 6px;
+  color: #fda4af;
+}
+
+.help-modal-content ul {
+  margin: 6px 0 10px 18px;
 }
 
 @media (max-width: 768px) {
