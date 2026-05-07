@@ -385,11 +385,8 @@ export function useGameState() {
     function resolvePublicPath(path: string): string {
         if (!path) return path
         if (/^https?:\/\//i.test(path)) return path
-        if (path.startsWith('/')) return path
-
         const cleanPath = path.replace(/^\/+/, '')
-        const base = (import.meta as unknown as { env: { BASE_URL: string } }).env?.BASE_URL ?? '/'
-        return `${base}${cleanPath}`
+        return `/klikacka/${cleanPath}`
     }
     function isBoostAvailable(type: BoostType): boolean {
         return availableBoosts.value.includes(type)
