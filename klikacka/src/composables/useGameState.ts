@@ -6,6 +6,7 @@ type FloatingText = { id: number; x: number; y: number; amount: number }
 type AudienceMember = { id: number; joinTime: number; leaveTime: number; hue: number }
 type BoostType = 'click' | 'investor' | 'audience'
 type BoostClaimMilestones = Record<BoostType, number>
+type BoostTimers = Record<BoostType, number>
 type GameState = {
     money?: number
     investors?: number
@@ -23,6 +24,8 @@ type GameState = {
     availableBoosts?: BoostType[]
     unlockedBoosts?: BoostType[]
     boostClaimMilestones?: Partial<BoostClaimMilestones>
+    activeBoosts?: BoostType[]
+    boostRemainingByTypeMs?: Partial<Record<BoostType, number>>
     activeBoost?: BoostType
     boostRemainingMs?: number
     lastSeenAt?: number
@@ -78,6 +81,7 @@ const BOSS_LOSS_MESSAGES = [
     'Stage dnes nepatří tobě. Publikum je zničené.'
 ]
 const JAN_KAFKA_WIN_STEAL_CHANCE = 0.4
+const AUDIENCE_BOOST_BOSS_REWARD_NAMES = new Set(['Hana Zagorová', 'Jan Kafka'])
 
 const BOSS_ROSTER: BossProfile[] = [
     { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' },
@@ -181,8 +185,9 @@ export function useGameState() {
         investor: 0,
         audience: 0
     })
-    const activeBoost = ref<BoostType | null>(null)
+    const activeBoosts = ref<BoostType[]>([])
     const boostRewardPending = ref<boolean>(false)
+    const audienceBossRewardUnlockedThisFight = ref<boolean>(false)
     const boostTimeLeftSeconds = ref<number>(0)
 
     function calculateClickPower(equipmentLevel: number): number {
@@ -197,9 +202,21 @@ export function useGameState() {
 
     const baseClickPower = computed<number>(() => calculateClickPower(equipment.value))
     const clickPower = computed<number>(() => {
-        const multiplier = activeBoost.value === 'click' ? 2 : 1
+        const multiplier = activeBoosts.value.includes('click') ? 2 : 1
         return roundDownToHalf(baseClickPower.value * multiplier)
     })
+
+    function calculateInvestorCost(level: number, equipmentLevel: number): number {
+        const baseCost = scaledProgressiveCost(320, 1.2, level, 10, 1.05, 0.86, 4)
+        const equipmentSurcharge = 1 + Math.max(0, equipmentLevel - 1) * 0.018
+        return roundDownToHalf(baseCost * equipmentSurcharge)
+    }
+
+    function calculateInvestorIncome(investorCount: number, equipmentLevel: number): number {
+        const equipmentBonus = 1 + Math.max(0, equipmentLevel - 1) * 0.014
+        const raw = investorCount * (1 + investorCount * 2.5) * equipmentBonus
+        return roundDownToHalf(raw)
+    }
 
     function scaledCost(base: number, growth: number, level: number): number {
         const safeLevel = Math.max(0, level)
@@ -229,7 +246,7 @@ export function useGameState() {
         return roundDownToHalf(raw)
     }
 
-    const investorCost = computed<number>(() => scaledProgressiveCost(320, 1.2, investors.value, 10, 1.05, 0.86, 4))
+    const investorCost = computed<number>(() => calculateInvestorCost(investors.value, equipment.value))
     const adCost = computed<number>(() => scaledProgressiveCost(117, 1.19, adLevel.value, 8, 1.06, 0.8, 4))
     const equipmentCost = computed<number>(() => scaledProgressiveCost(205, 1.24, equipment.value - 1, 9, 1.05, 0.84, 4))
     const ticketLevel = computed<number>(() => Math.max(0, Math.floor((ticketPrice.value - 1) / 2)))
@@ -258,12 +275,13 @@ export function useGameState() {
         return 250
     })
 
-    const investorIncome = computed<number>(() => {
-        const raw = investors.value * (1 + investors.value * 2.5)
-        return roundDownToHalf(raw)
+    const investorIncome = computed<number>(() => calculateInvestorIncome(investors.value, equipment.value))
+    const investorIncomeIncreasePerPurchase = computed<number>(() => {
+        const nextIncome = calculateInvestorIncome(investors.value + 1, equipment.value)
+        return roundDownToHalf(nextIncome - investorIncome.value)
     })
 
-    const investorIncomeIntervalSeconds = computed<number>(() => activeBoost.value === 'investor' ? 1 : 2)
+    const investorIncomeIntervalSeconds = computed<number>(() => activeBoosts.value.includes('investor') ? 1 : 2)
     const audienceJoinDelaySeconds = computed<number>(() => {
         const reduction = Math.floor(adLevel.value / AUDIENCE_JOIN_DELAY_STEP_LEVELS)
         return Math.max(AUDIENCE_BASE_JOIN_DELAY_SECONDS - reduction, AUDIENCE_MIN_JOIN_DELAY_SECONDS)
@@ -281,7 +299,7 @@ export function useGameState() {
     })
 
     const audienceStaySeconds = computed<number>(() => {
-        const multiplier = activeBoost.value === 'audience' ? 2 : 1
+        const multiplier = activeBoosts.value.includes('audience') ? 2 : 1
         return Math.floor(audienceBaseStaySeconds.value * multiplier)
     })
 
@@ -290,7 +308,7 @@ export function useGameState() {
         const linear = 40 + level * 32
         const surgeLevel = Math.max(0, level - 2)
         const surge = Math.pow(surgeLevel, 1.8) * 16
-        const audienceBoostMultiplier = activeBoost.value === 'audience' ? 2 : 1
+        const audienceBoostMultiplier = activeBoosts.value.includes('audience') ? 2 : 1
         return roundDownToHalf((linear + surge) * audienceBoostMultiplier)
     }
 
@@ -358,7 +376,22 @@ export function useGameState() {
     let restoredPendingBossRemainingMs: number | null = null
     let saveTimeout: ReturnType<typeof setTimeout> | null = null
     let lastSavedState = ''
-    let boostExpiresAt = 0
+    let boostExpiresAt: BoostTimers = {
+        click: 0,
+        investor: 0,
+        audience: 0
+    }
+
+    function resolvePublicPath(path: string): string {
+        if (!path) return path
+        if (/^https?:\/\//i.test(path)) return path
+        if (path.startsWith('/')) return path
+
+        const cleanPath = path.replace(/^\/+/, '')
+        const baseTag = typeof document !== 'undefined' ? document.querySelector('base')?.getAttribute('href') : null
+        const base = baseTag || '/'
+        return `${base}${cleanPath}`
+    }
     function isBoostAvailable(type: BoostType): boolean {
         return availableBoosts.value.includes(type)
     }
@@ -369,30 +402,41 @@ export function useGameState() {
     }
 
     function updateBoostCountdown(): void {
-        if (!activeBoost.value || boostExpiresAt <= 0) {
+        if (activeBoosts.value.length === 0) {
             boostTimeLeftSeconds.value = 0
             return
         }
 
-        const remainingMs = boostExpiresAt - Date.now()
-        if (remainingMs <= 0) {
-            activeBoost.value = null
-            boostExpiresAt = 0
-            boostTimeLeftSeconds.value = 0
+        const now = Date.now()
+        const stillActive: BoostType[] = []
+        const remainingSeconds: number[] = []
+
+        for (const type of activeBoosts.value) {
+            const remainingMs = (boostExpiresAt[type] ?? 0) - now
+            if (remainingMs > 0) {
+                stillActive.push(type)
+                remainingSeconds.push(Math.ceil(remainingMs / 1000))
+            } else {
+                boostExpiresAt[type] = 0
+            }
+        }
+
+        if (stillActive.length !== activeBoosts.value.length) {
+            activeBoosts.value = stillActive
             scheduleSaveGame()
-            return
         }
 
-        boostTimeLeftSeconds.value = Math.max(0, Math.ceil(remainingMs / 1000))
+        boostTimeLeftSeconds.value = remainingSeconds.length > 0 ? Math.max(...remainingSeconds) : 0
     }
 
     function activateBoost(type: BoostType): void {
         if (!isBoostAvailable(type)) return
+        if (activeBoosts.value.includes(type)) return
 
         availableBoosts.value = availableBoosts.value.filter((boost) => boost !== type)
-        activeBoost.value = type
-        boostExpiresAt = Date.now() + BOOST_DURATION_SECONDS * 1000
-        boostTimeLeftSeconds.value = BOOST_DURATION_SECONDS
+        activeBoosts.value = [...activeBoosts.value, type]
+        boostExpiresAt[type] = Date.now() + BOOST_DURATION_SECONDS * 1000
+        updateBoostCountdown()
 
         if (type === 'audience') {
             const extensionMs = audienceBaseStaySeconds.value * 1000
@@ -406,9 +450,10 @@ export function useGameState() {
     }
 
     function maybeGrantMilestoneBoost(type: BoostType, level: number): boolean {
-        const milestone = Math.floor(level / 5) * 5
+        const milestoneStep = type === 'audience' ? 20 : 10
+        const milestone = Math.floor(level / milestoneStep) * milestoneStep
         const claimedMilestone = boostClaimMilestones.value[type] ?? 0
-        if (milestone < 5 || milestone <= claimedMilestone) return false
+        if (milestone < milestoneStep || milestone <= claimedMilestone) return false
 
         grantBoost(type)
         boostClaimMilestones.value = {
@@ -426,8 +471,11 @@ export function useGameState() {
     }
 
     function claimBossRewardBoost(type: BoostType): void {
+        if (type === 'audience' && !audienceBossRewardUnlockedThisFight.value) return
+
         grantBoost(type)
         boostRewardPending.value = false
+        audienceBossRewardUnlockedThisFight.value = false
         scheduleSaveGame()
     }
 
@@ -482,8 +530,17 @@ export function useGameState() {
             audienceMembers: audienceMembers.value,
             availableBoosts: availableBoosts.value,
             boostClaimMilestones: boostClaimMilestones.value,
-            activeBoost: activeBoost.value ?? undefined,
-            boostRemainingMs: activeBoost.value ? Math.max(0, boostExpiresAt - Date.now()) : undefined,
+            activeBoosts: activeBoosts.value,
+            boostRemainingByTypeMs: {
+                click: activeBoosts.value.includes('click') ? Math.max(0, boostExpiresAt.click - Date.now()) : 0,
+                investor: activeBoosts.value.includes('investor') ? Math.max(0, boostExpiresAt.investor - Date.now()) : 0,
+                audience: activeBoosts.value.includes('audience') ? Math.max(0, boostExpiresAt.audience - Date.now()) : 0
+            },
+            activeBoost: activeBoosts.value[0] ?? undefined,
+            boostRemainingMs: activeBoosts.value.length > 0 ? Math.max(
+                0,
+                ...activeBoosts.value.map((type) => Math.max(0, boostExpiresAt[type] - Date.now()))
+            ) : undefined,
             lastSeenAt: Date.now()
         }
     }
@@ -547,13 +604,32 @@ export function useGameState() {
                 investor: Math.max(0, Number(gameState.boostClaimMilestones?.investor) || 0),
                 audience: Math.max(0, Number(gameState.boostClaimMilestones?.audience) || 0)
             }
-            activeBoost.value =
-                gameState.activeBoost === 'click' || gameState.activeBoost === 'investor' || gameState.activeBoost === 'audience'
-                    ? gameState.activeBoost
-                    : null
-            boostExpiresAt = activeBoost.value
-                ? Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingMs) || 0))
-                : 0
+            const parsedActiveBoosts = Array.isArray(gameState.activeBoosts)
+                ? gameState.activeBoosts.filter((boost): boost is BoostType =>
+                    boost === 'click' || boost === 'investor' || boost === 'audience'
+                )
+                : []
+
+            if (parsedActiveBoosts.length > 0) {
+                activeBoosts.value = parsedActiveBoosts
+                boostExpiresAt = {
+                    click: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.click) || 0)),
+                    investor: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.investor) || 0)),
+                    audience: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.audience) || 0))
+                }
+            } else {
+                const legacyActiveBoost =
+                    gameState.activeBoost === 'click' || gameState.activeBoost === 'investor' || gameState.activeBoost === 'audience'
+                        ? gameState.activeBoost
+                        : null
+                activeBoosts.value = legacyActiveBoost ? [legacyActiveBoost] : []
+                const legacyRemaining = Math.max(0, Math.floor(Number(gameState.boostRemainingMs) || 0))
+                boostExpiresAt = {
+                    click: legacyActiveBoost === 'click' ? Date.now() + legacyRemaining : 0,
+                    investor: legacyActiveBoost === 'investor' ? Date.now() + legacyRemaining : 0,
+                    audience: legacyActiveBoost === 'audience' ? Date.now() + legacyRemaining : 0
+                }
+            }
             updateBoostCountdown()
             restoredPendingBoss =
                 gameState.pendingBoss &&
@@ -790,17 +866,21 @@ export function useGameState() {
                 : keyToNote(event.key, event.code)
         if (!note) return
 
-        playNote(note as string)
-        lastPressedNote.value = note as string
-
         const stage = document.querySelector('.click-area')
         const rect = stage?.getBoundingClientRect()
         const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
         const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
 
+        triggerManualNote(note as string, cx, cy)
+    }
+
+    function triggerManualNote(note: string, clientX: number, clientY: number): void {
+        playNote(note)
+        lastPressedNote.value = note
+
         if (bossActive.value) return
 
-        triggerSing(cx, cy)
+        triggerSing(clientX, clientY)
     }
 
     function sing(event: MouseEvent): void {
@@ -843,7 +923,7 @@ export function useGameState() {
 
         pendingBoss = pickRandomBoss()
         bossIncomingName.value = pendingBoss.name
-        bossIncomingImage.value = pendingBoss.image
+        bossIncomingImage.value = resolvePublicPath(pendingBoss.image)
         bossWarningText.value = `${pendingBoss.name} je právě ve městě. Hraj, aby sis udržel diváky.`
 
         const delay = randomBossDelayMs()
@@ -869,7 +949,7 @@ export function useGameState() {
 
         pendingBoss = profile
         bossIncomingName.value = profile.name
-        bossIncomingImage.value = profile.image
+        bossIncomingImage.value = resolvePublicPath(profile.image)
 
         const safeDelay = Math.max(1000, Math.floor(delayMs))
         bossSpawnDelayMs = safeDelay
@@ -911,7 +991,7 @@ export function useGameState() {
         bossActive.value = true
         clearBossScheduleTimers()
         bossCurrentName.value = profile.name
-        bossCurrentImage.value = profile.image
+        bossCurrentImage.value = resolvePublicPath(profile.image)
         bossClicksRequired.value = requiredClicks
         bossClicksDone.value = 0
         bossFightDurationSeconds.value = durationSeconds
@@ -957,6 +1037,7 @@ export function useGameState() {
         if (won) {
             bossWins.value++
             boostRewardPending.value = true
+            audienceBossRewardUnlockedThisFight.value = AUDIENCE_BOOST_BOSS_REWARD_NAMES.has(defeatedName)
             if (defeatedName === 'Jan Kafka' && Math.random() < JAN_KAFKA_WIN_STEAL_CHANCE) {
                 const kafkaPenalty = roundDownToHalf(money.value / 3)
                 if (kafkaPenalty > 0) {
@@ -1228,7 +1309,7 @@ export function useGameState() {
                 effect: '+100 % za klik',
                 tooltip: 'Klik x2: dvojnásobný výdělek z každého kliku na 60 sekund.',
                 owned: isBoostAvailable('click'),
-                active: activeBoost.value === 'click'
+                active: activeBoosts.value.includes('click')
             },
             {
                 type: 'investor',
@@ -1237,7 +1318,7 @@ export function useGameState() {
                 effect: 'výplata každou 1 s',
                 tooltip: 'Investor 1s: investoři vyplácí příjem každou 1 sekundu po dobu 60 sekund.',
                 owned: isBoostAvailable('investor'),
-                active: activeBoost.value === 'investor'
+                active: activeBoosts.value.includes('investor')
             },
             {
                 type: 'audience',
@@ -1246,13 +1327,13 @@ export function useGameState() {
                 effect: '2x lístky a výdrž',
                 tooltip: 'Publikum x2: lidé zůstanou 2x déle a lístky vydělají 2x víc po dobu 60 sekund.',
                 owned: isBoostAvailable('audience'),
-                active: activeBoost.value === 'audience'
+                active: activeBoosts.value.includes('audience')
             }
         ]
     })
 
     const boostRewardOptions = computed<Array<{ type: BoostType; label: string; icon: string; effect: string; description: string }>>(() => {
-        return [
+        const options: Array<{ type: BoostType; label: string; icon: string; effect: string; description: string }> = [
             {
                 type: 'click',
                 label: 'Klik x2',
@@ -1266,15 +1347,20 @@ export function useGameState() {
                 icon: 'fa-solid fa-handshake',
                 effect: 'výplata každou 1 s',
                 description: 'Investoři budou posílat peníze každou 1 sekundu po dobu 60 sekund.'
-            },
-            {
+            }
+        ]
+
+        if (audienceBossRewardUnlockedThisFight.value) {
+            options.push({
                 type: 'audience',
                 label: 'Publikum x2',
                 icon: 'fa-solid fa-users',
                 effect: '2x lístky a výdrž',
                 description: 'Publikum vydělá 2x víc z lístků a vydrží 2x déle po dobu 60 sekund.'
-            }
-        ]
+            })
+        }
+
+        return options
     })
 
     return {
@@ -1299,6 +1385,7 @@ export function useGameState() {
         hallCapacityIncrease,
         clickPower,
         investorIncome,
+        investorIncomeIncreasePerPurchase,
         investorIncomeIntervalSeconds,
         audienceJoinDelaySeconds,
         audienceIncome,
@@ -1336,6 +1423,7 @@ export function useGameState() {
         activateBoost,
         saveGame,
         sing,
+        triggerManualNote,
         buyInvestor,
         buyAd,
         buyEquipment,

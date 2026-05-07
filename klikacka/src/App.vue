@@ -8,7 +8,7 @@ import StatsTable from '@/components/StatsTable.vue'
 import OfflineToast from '@/components/OfflineToast.vue'
 import BossResultToast from '@/components/BossResultToast.vue'
 import { useGameState } from '@/composables/useGameState'
-import { setNotesMuted } from '@/utils/notes'
+import { playNote, setNotesMuted } from '@/utils/notes'
 
 type BoostKind = 'click' | 'investor' | 'audience'
 
@@ -71,6 +71,7 @@ const {
   activateBoost,
   saveGame,
   sing,
+  triggerManualNote,
   buyInvestor,
   buyAd,
   buyEquipment,
@@ -98,6 +99,16 @@ function toggleKeyboardHelp(): void {
 const showSettingsMenu = ref<boolean>(false)
 function toggleSettingsMenu(): void {
   showSettingsMenu.value = !showSettingsMenu.value
+}
+
+function scrollToSection(sectionId: 'shop-section' | 'stage-section' | 'stats-section'): void {
+  document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function playLogoChord(): void {
+  playNote('C4')
+  playNote('E4')
+  playNote('G4')
 }
 
 const boostRewardChooserOpen = ref<boolean>(false)
@@ -131,9 +142,14 @@ function toggleMusicMute(): void {
     <OfflineToast :earnings="offlineEarnings" :offline-seconds="offlineSeconds" />
     <BossResultToast :text="bossResultText" :tone="bossResultTone" />
     <header>
-      <a class="logo">
+      <a class="logo interactive-logo" @click="playLogoChord">
         <i class="fa-solid fa-microphone"></i>
       </a>
+      <nav class="mobile-header-links header-center-links">
+        <button @click="scrollToSection('shop-section')">Vylepšení</button>
+        <button @click="scrollToSection('stage-section')">Stage</button>
+        <button @click="scrollToSection('stats-section')">Přehled</button>
+      </nav>
       <nav>
         <div class="settings-wrap">
           <a class="settings-toggle" @click="toggleSettingsMenu" title="Nastavení">
@@ -188,6 +204,7 @@ function toggleMusicMute(): void {
 
     <main class="layout">
       <GameShop
+        id="shop-section"
         :money="money"
         :investors="investors"
         :equipment="equipment"
@@ -219,6 +236,7 @@ function toggleMusicMute(): void {
       />
 
       <ClickStage
+        id="stage-section"
         :money="money"
         :floating-texts="floatingTexts"
         :current-song-name="currentSong.name"
@@ -248,9 +266,11 @@ function toggleMusicMute(): void {
         @sing="sing"
         @select-song="selectSong"
         @activate-boost="activateOwnedBoost"
+        @play-note="triggerManualNote"
       />
 
       <StatsTable
+        id="stats-section"
         :investors="investors"
         :ad-level="adLevel"
         :audience="audience"
@@ -270,6 +290,27 @@ function toggleMusicMute(): void {
 </template>
 
 <style scoped>
+#app {
+  padding-top: 86px;
+}
+
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+nav {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .save-flash {
   color: #4caf50 !important;
   transition: color 0.2s;
@@ -284,6 +325,26 @@ function toggleMusicMute(): void {
 
 .settings-wrap {
   position: relative;
+}
+
+.interactive-logo {
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.interactive-logo:hover {
+  transform: scale(1.12);
+}
+
+.mobile-header-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.header-center-links {
+  justify-self: center;
 }
 
 .settings-toggle {
@@ -499,5 +560,38 @@ function toggleMusicMute(): void {
 .help-toggle:focus-visible .help-tooltip {
   opacity: 1;
   transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  #app {
+    padding-top: 96px;
+  }
+
+  header {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .mobile-header-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 0;
+  }
+
+  .mobile-header-links button {
+    border: none;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #e5e7eb;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .settings-menu {
+    right: 0;
+    min-width: 210px;
+  }
 }
 </style>

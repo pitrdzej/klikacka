@@ -44,6 +44,7 @@ const emit = defineEmits<{
   (e: 'sing', event: MouseEvent): void
   (e: 'select-song', index: number): void
   (e: 'activate-boost', type: 'click' | 'investor' | 'audience'): void
+  (e: 'play-note', note: string, clientX: number, clientY: number): void
 }>()
 
 const bossProgress = computed(() => {
@@ -207,6 +208,7 @@ const EXTENDED_KEYBOARD_ROWS = [
               v-if="keyItem"
               class="piano-black-key"
               :class="{ active: lastPressedNote === keyItem.note }"
+              @click="emit('play-note', keyItem.note, $event.clientX, $event.clientY)"
             >
               <span class="note-name">{{ keyItem.note }}</span>
               <span class="key-label">{{ keyItem.label }}</span>
@@ -220,6 +222,7 @@ const EXTENDED_KEYBOARD_ROWS = [
             :key="keyItem.note"
             class="piano-white-key"
             :class="{ active: lastPressedNote === keyItem.note }"
+            @click="emit('play-note', keyItem.note, $event.clientX, $event.clientY)"
           >
             <span class="note-name">{{ keyItem.note }}</span>
             <span class="key-label">{{ keyItem.label }}</span>
@@ -671,6 +674,7 @@ const EXTENDED_KEYBOARD_ROWS = [
   transition: 0.1s;
   user-select: none;
   box-shadow: 0 10px 16px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
 }
 
 .piano-black-key {
@@ -689,6 +693,7 @@ const EXTENDED_KEYBOARD_ROWS = [
   transition: 0.1s;
   user-select: none;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
 }
 
 .note-name {
