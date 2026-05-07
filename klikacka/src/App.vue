@@ -29,6 +29,7 @@ const {
   currentSong,
   nextSongName,
   hallInvestorRequirement,
+  hallCapacityIncrease,
   clickPower,
   investorIncome,
   investorIncomeIntervalSeconds,
@@ -140,6 +141,7 @@ function toggleMusicMute(): void {
         :current-song-name="currentSong.name"
         :next-song-name="nextSongName"
         :hall-investor-requirement="hallInvestorRequirement"
+        :hall-capacity-increase="hallCapacityIncrease"
         :ticket-income-increase-per-upgrade="ticketIncomeIncreasePerUpgrade"
         :click-power-increase-per-upgrade="clickPowerIncreasePerUpgrade"
         :audience-join-delay-seconds="audienceJoinDelaySeconds"

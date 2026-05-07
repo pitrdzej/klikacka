@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { formatHalfStep } from '@/utils/number'
-import { ALL_NOTES, NOTE_KEY_LABELS } from '@/utils/notes'
+import { PIANO_BLACK_KEYS, PIANO_WHITE_KEYS } from '@/utils/notes'
 
 const props = defineProps<{
   money: number
@@ -74,13 +74,11 @@ const hasExtendedKeyboard = computed(() => props.unlockedSongNames.length > 1)
 
 const BASE_KEYBOARD_ROWS = [
   [
-    { key: 'Z', note: 'C3' },
-    { key: 'X', note: 'D3' },
-    { key: 'C', note: 'E3' },
-    { key: 'V', note: 'F3' },
-    { key: 'B', note: 'G3' },
-    { key: 'N', note: 'A3' },
-    { key: 'M', note: 'B3' }
+    { key: 'W', note: 'C#4' },
+    { key: 'E', note: 'D#4' },
+    { key: 'T', note: 'F#4' },
+    { key: 'Z', note: 'G#4' },
+    { key: 'U', note: 'A#4' }
   ],
   [
     { key: 'A', note: 'C4' },
@@ -100,37 +98,29 @@ const EXTENDED_KEYBOARD_ROWS = [
     { key: '2', note: 'D#3' },
     { key: '3', note: 'F#3' },
     { key: '4', note: 'G#3' },
-    { key: '5', note: 'A#3' },
-    { key: '6', note: 'C#4' },
-    { key: '7', note: 'D#4' },
-    { key: '8', note: 'F#4' },
-    { key: '9', note: 'G#4' },
-    { key: '0', note: 'A#4' }
+    { key: '5', note: 'A#3' }
   ],
   [
-    { key: 'Q', note: 'C5' },
-    { key: 'W', note: 'D5' },
-    { key: 'E', note: 'E5' },
-    { key: 'R', note: 'F5' },
-    { key: 'T', note: 'G5' },
-    { key: 'Y', note: 'A5' },
-    { key: 'U', note: 'B5' },
-    { key: 'I', note: 'C#5' },
-    { key: 'O', note: 'D#5' },
-    { key: 'P', note: 'F#5' },
-    { key: '[', note: 'G#5' },
-    { key: ']', note: 'A#5' }
+    { key: 'Q', note: 'C3' },
+    { key: 'X', note: 'D3' },
+    { key: 'C', note: 'E3' },
+    { key: 'V', note: 'F3' },
+    { key: 'B', note: 'G3' },
+    { key: 'N', note: 'A3' },
+    { key: 'M', note: 'B3' }
   ],
   [
-    { key: 'Shift+Z', note: 'C6' },
-    { key: 'Shift+X', note: 'D6' },
-    { key: 'Shift+C', note: 'E6' },
-    { key: 'Shift+V', note: 'F6' },
-    { key: 'Shift+B', note: 'G6' },
-    { key: 'Shift+N', note: 'A6' },
-    { key: 'Shift+M', note: 'B6' },
-    { key: 'Shift+K', note: 'C2' },
-    { key: 'Shift+L', note: 'D2' }
+    { key: '6', note: 'C#5' },
+    { key: '7', note: 'D#5' },
+    { key: '8', note: 'F#5' },
+    { key: '9', note: 'G#5' },
+    { key: '0', note: 'A#5' },
+    { key: 'R', note: 'D5' },
+    { key: 'Y', note: 'E5' },
+    { key: 'I', note: 'F5' },
+    { key: 'O', note: 'G5' },
+    { key: 'P', note: 'A5' },
+    { key: 'L', note: 'B5' }
   ]
 ]
 </script>
@@ -196,26 +186,32 @@ const EXTENDED_KEYBOARD_ROWS = [
       </div>
 
       <div class="piano">
-        <div class="piano-row">
+        <div class="piano-black-row">
           <div
-            v-for="note in ALL_NOTES.slice(0, 7)"
-            :key="note"
-            class="piano-key"
-            :class="{ active: lastPressedNote === note }"
+            v-for="(keyItem, index) in PIANO_BLACK_KEYS"
+            :key="keyItem?.note ?? `empty-${index}`"
+            class="piano-black-slot"
           >
-            <span class="note-name">{{ note }}</span>
-            <span class="key-label">{{ NOTE_KEY_LABELS[note] }}</span>
+            <div
+              v-if="keyItem"
+              class="piano-black-key"
+              :class="{ active: lastPressedNote === keyItem.note }"
+            >
+              <span class="note-name">{{ keyItem.note }}</span>
+              <span class="key-label">{{ keyItem.label }}</span>
+            </div>
           </div>
         </div>
-        <div class="piano-row">
+
+        <div class="piano-white-row">
           <div
-            v-for="note in ALL_NOTES.slice(7)"
-            :key="note"
-            class="piano-key"
-            :class="{ active: lastPressedNote === note }"
+            v-for="keyItem in PIANO_WHITE_KEYS"
+            :key="keyItem.note"
+            class="piano-white-key"
+            :class="{ active: lastPressedNote === keyItem.note }"
           >
-            <span class="note-name">{{ note }}</span>
-            <span class="key-label">{{ NOTE_KEY_LABELS[note] }}</span>
+            <span class="note-name">{{ keyItem.note }}</span>
+            <span class="key-label">{{ keyItem.label }}</span>
           </div>
         </div>
       </div>
@@ -498,8 +494,8 @@ const EXTENDED_KEYBOARD_ROWS = [
   bottom: 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
   align-items: center;
+  width: 392px;
   z-index: 10;
 }
 
@@ -540,49 +536,86 @@ const EXTENDED_KEYBOARD_ROWS = [
   }
 }
 
-.piano-row {
-  display: flex;
-  gap: 4px;
+.piano-black-row {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  width: 330px;
+  margin: 0 auto -18px;
 }
 
-.piano-key {
-  width: 40px;
+.piano-black-slot {
+  display: flex;
+  justify-content: center;
+}
+
+.piano-white-row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  width: 392px;
+}
+
+.piano-white-key {
+  height: 68px;
+  border-radius: 0 0 10px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 6px;
+  font-weight: 700;
+  color: #374151;
+  transition: 0.1s;
+  user-select: none;
+  box-shadow: 0 10px 16px rgba(0, 0, 0, 0.18);
+}
+
+.piano-black-key {
+  width: 30px;
   height: 44px;
-  border-radius: 6px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(180deg, #111827, #2b2132);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   padding: 5px 0 4px;
   font-weight: 700;
-  color: #999;
+  color: #d1d5db;
   transition: 0.1s;
   user-select: none;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
 }
 
 .note-name {
   font-size: 0.7rem;
-  color: #bbb;
+  color: inherit;
 }
 
 .key-label {
   font-size: 0.8rem;
   font-weight: 800;
-  color: #666;
+  color: inherit;
 }
 
-.piano-key.active {
-  background: rgba(255, 77, 109, 0.3);
-  border-color: #ff4d6d;
+.piano-white-key.active {
+  background: #ffd5df;
+  border-color: rgba(255, 77, 109, 0.5);
   color: #fff;
-  box-shadow: 0 0 12px rgba(255, 77, 109, 0.6);
+  box-shadow: 0 0 14px rgba(255, 77, 109, 0.55);
 }
 
-.piano-key.active .note-name,
-.piano-key.active .key-label {
+.piano-black-key.active {
+  background: linear-gradient(180deg, #7f1d1d, #be123c);
+  border-color: rgba(255, 77, 109, 0.6);
   color: #fff;
+  box-shadow: 0 0 14px rgba(255, 77, 109, 0.55);
 }
 
 .keyboard-guide {
@@ -722,6 +755,28 @@ const EXTENDED_KEYBOARD_ROWS = [
 }
 
 @media (max-width: 680px) {
+  .piano {
+    width: 312px;
+  }
+
+  .piano-white-row {
+    width: 312px;
+  }
+
+  .piano-black-row {
+    width: 264px;
+    margin-bottom: -16px;
+  }
+
+  .piano-white-key {
+    height: 58px;
+  }
+
+  .piano-black-key {
+    width: 24px;
+    height: 38px;
+  }
+
   .keyboard-layout-grid {
     grid-template-columns: 1fr;
   }

@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <template>
-  <aside class="stats">
+  <aside class="stats glow-stats">
     <h2>Přehled</h2>
     <table>
       <tbody>
@@ -62,3 +62,43 @@ defineProps<{
     </table>
   </aside>
 </template>
+
+<style scoped>
+.glow-stats {
+  background: rgba(30, 24, 38, 0.96);
+  box-shadow:
+    inset 0 0 30px rgba(255, 77, 109, 0.08),
+    0 18px 34px rgba(0, 0, 0, 0.22);
+}
+
+.glow-stats h2 {
+  color: #ffd5df;
+  text-shadow: 0 0 14px rgba(255, 77, 109, 0.18);
+}
+
+.glow-stats table {
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.glow-stats th {
+  background: rgba(73, 41, 63, 0.95);
+}
+
+.glow-stats tr:nth-child(odd) {
+  background: rgba(57, 38, 56, 0.82);
+}
+
+.glow-stats tr:nth-child(even) {
+  background: rgba(49, 34, 49, 0.82);
+}
+
+.glow-stats td {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.glow-stats td:last-child {
+  color: #ff9bb0;
+  font-weight: 700;
+}
+</style>

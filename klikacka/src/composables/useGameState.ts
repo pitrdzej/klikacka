@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { roundDownToHalf } from '@/utils/number'
-import { playNote, keyToNote, EXTENDED_NOTE_KEYS } from '@/utils/notes'
+import { playNote, keyToNote, extendedKeyToNote } from '@/utils/notes'
 
 type FloatingText = { id: number; x: number; y: number; amount: number }
 type AudienceMember = { id: number; joinTime: number; leaveTime: number; hue: number }
@@ -39,6 +39,7 @@ const OFFLINE_MAX_MULTIPLIER = 0.24
 const OFFLINE_BASE_MAX_SECONDS = 60 * 60 * 8
 const OFFLINE_HARD_MAX_SECONDS = 60 * 60 * 24
 const MIN_OFFLINE_REWARD_SECONDS = 60 * 60
+const SAVE_DEBOUNCE_MS = 500
 const BOSS_MIN_DELAY_MS = 90_000
 const BOSS_MAX_DELAY_MS = 180_000
 const BOSS_DURATION_SECONDS = 20
@@ -55,14 +56,29 @@ const AUDIENCE_MIN_INCOME_INTERVAL_SECONDS = 5
 const AUDIENCE_BASE_STAY_SECONDS = 120
 const AUDIENCE_STAY_STEP_LEVELS = 5
 
+const BOSS_WIN_MESSAGES = [
+    'Celebrita {boss} ustoupila. Publikum teď přechází k Tobě.',
+    'Nyní jsi králem pódia.',
+    'Celebrita {boss} ztratila tempo a fanoušci skandují tvoje jméno.',
+    'Stage je tvoje. Dav je na tvojí straně.'
+]
+
+const BOSS_LOSS_MESSAGES = [
+    'Publikum brečí, koncert interpreta je zrušený.',
+    'Celebrita {boss} tě přehrála. Dav odchází zklamaný.',
+    'Smolný večer. Město mluví o vítězství interpreta.',
+    'Stage dnes nepatří tobě. Publikum je zničené.'
+]
+const JAN_KAFKA_WIN_STEAL_CHANCE = 0.4
+
 const BOSS_ROSTER: BossProfile[] = [
     { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' },
-    { name: 'Yzomandias', fame: 1.15, image: 'bosses/Yzomandias.jpg' },
-    { name: 'Dua Lipa', fame: 1.3, image: 'bosses/DuaLipa.jpg' },
-    { name: 'Ed Sheeran', fame: 1.45, image: 'bosses/EdSheeran.jpg' },
-    { name: 'Billie Eilish', fame: 1.48, image: 'bosses/Billie.jpg' },
-    { name: 'Hana Zagorová', fame: 1.5, image: 'bosses/HanaZagorova.jpg' },
-    { name: 'Jan Kafka', fame: 1.6, image: 'bosses/JanKafka.jpg' }
+    { name: 'Yzomandias', fame: 1.45, image: 'bosses/Yzomandias.jpg' },
+    { name: 'Dua Lipa', fame: 1.7, image: 'bosses/DuaLipa.jpg' },
+    { name: 'Ed Sheeran', fame: 1.8, image: 'bosses/EdSheeran.jpg' },
+    { name: 'Billie Eilish', fame: 1.9, image: 'bosses/Billie.jpg' },
+    { name: 'Hana Zagorová', fame: 2, image: 'bosses/HanaZagorova.jpg' },
+    { name: 'Jan Kafka', fame: 2.2, image: 'bosses/JanKafka.jpg' }
 ]
 
 const DEFAULT_BOSS: BossProfile = { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' }
@@ -154,12 +170,12 @@ export function useGameState() {
 
     function calculateClickPower(equipmentLevel: number): number {
         if (equipmentLevel <= 1) return 1
-        if (equipmentLevel === 2) return 2.5
-        if (equipmentLevel === 3) return 5
+        if (equipmentLevel === 2) return 1.5
+        if (equipmentLevel === 3) return 2.5
 
         const level = equipmentLevel - 3
-        const raw = 5 + level * 4 + Math.pow(level, 1.38) * 2.6
-        return roundDownToHalf(Math.min(raw, 12000))
+        const raw = 2.5 + level * 1.7 + Math.pow(level, 1.2) * 0.95
+        return roundDownToHalf(raw)
     }
 
     const clickPower = computed<number>(() => calculateClickPower(equipment.value))
@@ -169,11 +185,34 @@ export function useGameState() {
         return roundDownToHalf(base * Math.pow(growth, safeLevel))
     }
 
-    const investorCost = computed<number>(() => scaledCost(340, 1.2, investors.value))
-    const adCost = computed<number>(() => scaledCost(150, 1.14, adLevel.value))
-    const equipmentCost = computed<number>(() => scaledCost(220, 1.3, equipment.value - 1))
+    function scaledProgressiveCost(
+        base: number,
+        growth: number,
+        level: number,
+        lateGrowthStart: number,
+        lateGrowth: number,
+        earlyDiscountMin = 0.84,
+        earlyDiscountLevels = 4
+    ): number {
+        const safeLevel = Math.max(0, level)
+        const lateLevel = Math.max(0, safeLevel - lateGrowthStart)
+
+        let raw = base * Math.pow(growth, safeLevel) * Math.pow(lateGrowth, lateLevel)
+
+        if (safeLevel < earlyDiscountLevels) {
+            const t = safeLevel / Math.max(1, earlyDiscountLevels - 1)
+            const discount = earlyDiscountMin + (1 - earlyDiscountMin) * t
+            raw *= discount
+        }
+
+        return roundDownToHalf(raw)
+    }
+
+    const investorCost = computed<number>(() => scaledProgressiveCost(320, 1.2, investors.value, 10, 1.05, 0.86, 4))
+    const adCost = computed<number>(() => scaledProgressiveCost(117, 1.19, adLevel.value, 8, 1.06, 0.8, 4))
+    const equipmentCost = computed<number>(() => scaledProgressiveCost(205, 1.24, equipment.value - 1, 9, 1.05, 0.84, 4))
     const ticketLevel = computed<number>(() => Math.max(0, Math.floor((ticketPrice.value - 1) / 2)))
-    const ticketsCost = computed<number>(() => scaledCost(620, 1.24, ticketLevel.value))
+    const ticketsCost = computed<number>(() => scaledProgressiveCost(560, 1.22, ticketLevel.value, 8, 1.06, 0.84, 4))
     const nextSongCost = computed<number>(() => scaledCost(1200, 5, songLevel.value))
     const hasNextSong = computed<boolean>(() => songLevel.value < SONGS.length - 1)
     const unlockedSongNames = computed<string[]>(() => {
@@ -190,6 +229,13 @@ export function useGameState() {
         return SONGS[songLevel.value + 1]?.name ?? 'Další písnička'
     })
     const hallInvestorRequirement = computed<number>(() => 4 + Math.floor(capacity.value / 15))
+    const hallCapacityIncrease = computed<number>(() => {
+        if (capacity.value < 100) return 10
+        if (capacity.value < 250) return 20
+        if (capacity.value < 800) return 50
+        if (capacity.value < 3000) return 120
+        return 250
+    })
 
     const investorIncome = computed<number>(() => {
         const raw = investors.value * (1 + investors.value * 2.5)
@@ -272,18 +318,20 @@ export function useGameState() {
     let pendingBoss: BossProfile | null = null
     let restoredPendingBoss: BossProfile | null = null
     let restoredPendingBossRemainingMs: number | null = null
+    let saveTimeout: ReturnType<typeof setTimeout> | null = null
+    let lastSavedState = ''
 
     const handleBeforeUnload = () => {
         saveGame()
     }
 
-    const saveGame = () => {
+    function buildGameState() {
         const pendingBossRemainingMs =
             !bossActive.value && pendingBoss && bossNextSpawnAt > 0
                 ? Math.max(0, bossNextSpawnAt - Date.now())
                 : null
 
-        const gameState = {
+        return {
             money: roundDownToHalf(money.value),
             investors: investors.value,
             equipment: equipment.value,
@@ -299,8 +347,32 @@ export function useGameState() {
             audienceMembers: audienceMembers.value,
             lastSeenAt: Date.now()
         }
+    }
 
-        localStorage.setItem('klikacka-save', JSON.stringify(gameState))
+    function persistGameState(force = false): void {
+        const serialized = JSON.stringify(buildGameState())
+        if (!force && serialized === lastSavedState) return
+
+        localStorage.setItem('klikacka-save', serialized)
+        lastSavedState = serialized
+    }
+
+    function scheduleSaveGame(): void {
+        if (saveTimeout) return
+
+        saveTimeout = setTimeout(() => {
+            saveTimeout = null
+            persistGameState()
+        }, SAVE_DEBOUNCE_MS)
+    }
+
+    const saveGame = () => {
+        if (saveTimeout) {
+            clearTimeout(saveTimeout)
+            saveTimeout = null
+        }
+
+        persistGameState(true)
     }
 
     const loadGame = (): number | null => {
@@ -390,7 +462,7 @@ export function useGameState() {
 
         offlineEarnings.value = reward
         addMoney(reward)
-        saveGame()
+        scheduleSaveGame()
     }
 
     function addMoney(amount: number): void {
@@ -426,22 +498,16 @@ export function useGameState() {
             floatingTexts.value = floatingTexts.value.filter((t) => t.id !== id)
         }, 1000)
 
-        saveGame()
+        scheduleSaveGame()
     }
 
     function isPlayerActive(): boolean {
         return Date.now() - lastInteractionAt.value <= PLAYER_INACTIVE_MS
     }
 
-    function getBossLevelFromWins(): number {
-        return Math.min(BOSS_ROSTER.length - 1, Math.floor(bossWins.value / 2))
-    }
-
     function pickRandomBoss(): BossProfile {
-        const maxLevel = getBossLevelFromWins()
-        const unlocked = BOSS_ROSTER.slice(0, maxLevel + 1)
-        const randomIndex = Math.floor(Math.random() * unlocked.length)
-        return unlocked[randomIndex] ?? BOSS_ROSTER[0] ?? DEFAULT_BOSS
+        const randomIndex = Math.floor(Math.random() * BOSS_ROSTER.length)
+        return BOSS_ROSTER[randomIndex] ?? BOSS_ROSTER[0] ?? DEFAULT_BOSS
     }
 
     function showBossResult(text: string, tone: BossResultTone = 'success'): void {
@@ -456,6 +522,17 @@ export function useGameState() {
         bossResultTimeout = setTimeout(() => {
             bossResultText.value = ''
         }, 5000)
+    }
+
+    function pickRandomMessage(pool: string[], bossName: string): string {
+        const index = Math.floor(Math.random() * pool.length)
+        const template = pool[index] ?? '{boss}'
+        return template.replace('{boss}', bossName)
+    }
+
+    function clearRestoredBoss(): void {
+        restoredPendingBoss = null
+        restoredPendingBossRemainingMs = null
     }
 
     function clearBossScheduleTimers(): void {
@@ -536,13 +613,11 @@ export function useGameState() {
         }
 
         if (remainingSeconds <= BOSS_WARNING_WINDOW_SECONDS) {
-            bossWarningText.value = `⚠️ ${bossIncomingName.value || 'Boss'} dorazí za ${remainingSeconds}s!`
+            bossWarningText.value = `⚠️ ${bossIncomingName.value || 'Boss'} je právě ve městě. Hraj, aby sis udržel diváky. Dorazí za ${remainingSeconds}s!`
             return
         }
 
-        if (bossWarningText.value.startsWith('⚠️')) {
-            bossWarningText.value = ''
-        }
+        bossWarningText.value = `${bossIncomingName.value || 'Boss'} je právě ve městě. Hraj, aby sis udržel diváky.`
     }
 
     function handleKeyPress(event: KeyboardEvent): void {
@@ -551,7 +626,7 @@ export function useGameState() {
 
         const note =
             songLevel.value > 0
-                ? (EXTENDED_NOTE_KEYS[event.key] ?? keyToNote(event.key))
+                ? extendedKeyToNote(event.key, event.code)
                 : keyToNote(event.key)
         if (!note) return
 
@@ -562,6 +637,8 @@ export function useGameState() {
         const rect = stage?.getBoundingClientRect()
         const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
         const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+
+        if (bossActive.value) return
 
         triggerSing(cx, cy)
     }
@@ -607,6 +684,7 @@ export function useGameState() {
         pendingBoss = pickRandomBoss()
         bossIncomingName.value = pendingBoss.name
         bossIncomingImage.value = pendingBoss.image
+        bossWarningText.value = `${pendingBoss.name} je právě ve městě. Hraj, aby sis udržel diváky.`
 
         const delay = randomBossDelayMs()
         bossSpawnDelayMs = delay
@@ -656,14 +734,14 @@ export function useGameState() {
             return
         }
 
-        const level = getBossLevelFromWins()
         const investorPressure = Math.floor(Math.sqrt(Math.max(investors.value, 0)) * 3)
-        const baseRequired = 28 + level * 7
+        const luckFactor = 0.82 + Math.random() * 0.44
+        const baseRequired = 36 + investorPressure
         const requiredClicks = Math.max(
             35,
-            Math.min(260, Math.floor((baseRequired + investorPressure) * profile.fame))
+            Math.min(260, Math.floor(baseRequired * profile.fame * luckFactor))
         )
-        const durationSeconds = Math.max(12, BOSS_DURATION_SECONDS - Math.floor(level / 2))
+        const durationSeconds = Math.max(12, Math.min(22, Math.floor(BOSS_DURATION_SECONDS + (1.15 - luckFactor) * 8)))
 
         if (!isPlayerActive()) {
             setBossReengageGate('Nejsi aktivní.')
@@ -696,14 +774,41 @@ export function useGameState() {
 
         const defeatedName = bossCurrentName.value
 
-        if (!won && investors.value > 0) {
-            investors.value = 0
-            showBossResult(`❌ ${defeatedName} tě porazil. Investoři odešli.`, 'error')
+        if (!won) {
+            const investorLossRatio = Math.random() < 0.5 ? 0.5 : (2 / 3)
+            const investorsBefore = investors.value
+            const investorPenalty = Math.floor(investorsBefore * investorLossRatio)
+            if (investorPenalty > 0) {
+                investors.value = Math.max(0, investorsBefore - investorPenalty)
+            }
+
+            const moneyPenalty = roundDownToHalf(money.value * 0.5)
+            if (moneyPenalty > 0) {
+                money.value = roundDownToHalf(money.value - moneyPenalty)
+            }
+
+            const lossMessage = pickRandomMessage(BOSS_LOSS_MESSAGES, defeatedName)
+            const moneyPenaltyText = moneyPenalty > 0 ? ` -${roundDownToHalf(moneyPenalty)}$` : ''
+            const investorPenaltyText = investorPenalty > 0 ? ` -${investorPenalty} investorů` : ''
+            const penaltyText = `${moneyPenaltyText}${investorPenaltyText}`
+            showBossResult(`${lossMessage}${penaltyText}`, 'error')
         }
 
         if (won) {
             bossWins.value++
-            showBossResult(`✅ ${defeatedName} byl poražen! Publikum šílí.`, 'success')
+            if (defeatedName === 'Jan Kafka' && Math.random() < JAN_KAFKA_WIN_STEAL_CHANCE) {
+                const kafkaPenalty = roundDownToHalf(money.value / 3)
+                if (kafkaPenalty > 0) {
+                    money.value = roundDownToHalf(money.value - kafkaPenalty)
+                }
+
+                const kafkaMessage = 'Jan Kafka byl populárnější. I přes výhru ti dokázal sebrat peníze.'
+                const kafkaPenaltyText = kafkaPenalty > 0 ? ` -${kafkaPenalty}$` : ''
+                showBossResult(`${kafkaMessage}${kafkaPenaltyText}`, 'error')
+            } else {
+                const winMessage = pickRandomMessage(BOSS_WIN_MESSAGES, defeatedName)
+                showBossResult(winMessage, 'success')
+            }
         }
 
         bossActive.value = false
@@ -720,9 +825,12 @@ export function useGameState() {
             bossTickInterval = null
         }
 
-        saveGame()
+        scheduleSaveGame()
         if (restoredPendingBoss && restoredPendingBossRemainingMs !== null) {
-            scheduleRestoredBoss(restoredPendingBossRemainingMs, restoredPendingBoss)
+            const restoredBoss = restoredPendingBoss
+            const restoredDelay = restoredPendingBossRemainingMs
+            clearRestoredBoss()
+            scheduleRestoredBoss(restoredDelay, restoredBoss)
         } else {
             scheduleNextBoss()
         }
@@ -732,7 +840,7 @@ export function useGameState() {
         if (!spendMoney(investorCost.value)) return
 
         investors.value++
-        saveGame()
+        scheduleSaveGame()
     }
 
     function addAudienceMember(): void {
@@ -752,7 +860,7 @@ export function useGameState() {
         if (audience.value >= capacity.value || !spendMoney(adCost.value)) return
 
         adLevel.value++
-        saveGame()
+        scheduleSaveGame()
 
         const personDelay = audienceJoinDelaySeconds.value * 1000
         const peopleToAdd = 3 + Math.floor(adLevel.value * 0.35)
@@ -761,7 +869,7 @@ export function useGameState() {
             setTimeout(() => {
                 if (audience.value < capacity.value) {
                     addAudienceMember()
-                    saveGame()
+                    scheduleSaveGame()
                 }
             }, i * personDelay)
         }
@@ -771,22 +879,22 @@ export function useGameState() {
         if (!spendMoney(equipmentCost.value)) return
 
         equipment.value++
-        saveGame()
+        scheduleSaveGame()
     }
 
     function buyHall(): void {
         if (investors.value < hallInvestorRequirement.value) return
 
         investors.value -= hallInvestorRequirement.value
-        capacity.value += 10
-        saveGame()
+        capacity.value += hallCapacityIncrease.value
+        scheduleSaveGame()
     }
 
     function buyTickets(): void {
         if (!spendMoney(ticketsCost.value)) return
 
         ticketPrice.value += 2
-        saveGame()
+        scheduleSaveGame()
     }
 
     function buySong(): void {
@@ -796,7 +904,7 @@ export function useGameState() {
         songLevel.value++
         selectedSongIndex.value = songLevel.value
         melodyIndex.value = 0
-        saveGame()
+        scheduleSaveGame()
     }
 
     function selectSong(index: number): void {
@@ -806,18 +914,22 @@ export function useGameState() {
 
         selectedSongIndex.value = safeIndex
         melodyIndex.value = 0
-        saveGame()
+        scheduleSaveGame()
     }
 
-    function removeExpiredAudience(): void {
+    function removeExpiredAudience(): boolean {
         const now = Date.now()
+        let changed = false
 
         audienceMembers.value = audienceMembers.value.filter((member) => {
             if (now < member.leaveTime) return true
 
             audience.value--
+            changed = true
             return false
         })
+
+        return changed
     }
 
     const displayAudience = computed<Array<{ active: boolean; hue: number }>>(() => {
@@ -862,7 +974,7 @@ export function useGameState() {
         investorInterval = setInterval(() => {
             if (investorIncome.value > 0) {
                 addMoney(investorIncome.value)
-                saveGame()
+                scheduleSaveGame()
             }
         }, investorIncomeIntervalSeconds.value * 1000)
 
@@ -874,13 +986,14 @@ export function useGameState() {
             ) {
                 addMoney(audienceIncome.value)
                 lastAudienceIncomeAt = now
-                saveGame()
+                scheduleSaveGame()
             }
         }, 1000)
 
         audienceInterval = setInterval(() => {
-            removeExpiredAudience()
-            saveGame()
+            if (removeExpiredAudience()) {
+                scheduleSaveGame()
+            }
         }, 1000)
 
         inactivityInterval = setInterval(() => {
@@ -891,7 +1004,14 @@ export function useGameState() {
             updateBossIncomingCountdown()
         }, 1000)
 
-        scheduleNextBoss()
+        if (restoredPendingBoss && restoredPendingBossRemainingMs !== null) {
+            const restoredBoss = restoredPendingBoss
+            const restoredDelay = restoredPendingBossRemainingMs
+            clearRestoredBoss()
+            scheduleRestoredBoss(restoredDelay, restoredBoss)
+        } else {
+            scheduleNextBoss()
+        }
     })
 
     onUnmounted(() => {
@@ -905,6 +1025,10 @@ export function useGameState() {
         clearBossScheduleTimers()
         if (bossTickInterval) clearInterval(bossTickInterval)
         if (bossResultTimeout) clearTimeout(bossResultTimeout)
+        if (saveTimeout) {
+            clearTimeout(saveTimeout)
+            saveTimeout = null
+        }
 
         saveGame()
     })
@@ -928,6 +1052,7 @@ export function useGameState() {
         currentSong,
         nextSongName,
         hallInvestorRequirement,
+        hallCapacityIncrease,
         clickPower,
         investorIncome,
         investorIncomeIntervalSeconds,
