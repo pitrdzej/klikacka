@@ -403,6 +403,7 @@ export function useGameState() {
             return
         }
 
+        const wasAudienceActive = activeBoosts.value.includes('audience')
         const now = Date.now()
         const stillActive: BoostType[] = []
         const remainingSeconds: number[] = []
@@ -419,6 +420,12 @@ export function useGameState() {
 
         if (stillActive.length !== activeBoosts.value.length) {
             activeBoosts.value = stillActive
+
+            const isAudienceActive = stillActive.includes('audience')
+            if (wasAudienceActive && !isAudienceActive && ticketPrice.value % 2 === 0) {
+                ticketPrice.value = Math.max(1, Math.floor(ticketPrice.value / 2))
+            }
+
             scheduleSaveGame()
         }
 
