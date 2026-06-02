@@ -1,8 +1,31 @@
 {
+  "name": "klikacka",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "deploy": "cd klikacka && npm run build && cd .. && cp klikacka/dist/index.html index.html && rm -rf assets sounds bosses && cp -r klikacka/dist/assets assets && cp -r klikacka/dist/sounds sounds && cp -r klikacka/dist/bosses bosses && cp klikacka/dist/favicon.ico favicon.ico"
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "deploy": "npm run build && rm -rf assets sounds bosses && cp -r dist/assets assets && cp -r public/sounds sounds && cp -r public/bosses bosses && cp dist/favicon.ico favicon.ico"
   },
   "dependencies": {
-    "vue": "^3.5.30"
+    "vue": "^3.5.29"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^24.11.0",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/tsconfig": "^0.9.1",
+    "npm-run-all2": "^8.0.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-vue-devtools": "^8.0.6",
+    "vue-tsc": "^3.2.5"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }
