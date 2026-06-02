@@ -15,5 +15,7 @@ export default defineConfig(({ command }) => ({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
-  base: '/klikacka/',
+  // Use relative base so built assets work both locally and when copied to root
+  // (e.g. after deploy script copies `dist` files to repository root)
+  base: './',
 }))
