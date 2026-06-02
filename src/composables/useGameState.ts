@@ -195,8 +195,9 @@ export function useGameState() {
         if (equipmentLevel === 2) return 1.5
         if (equipmentLevel === 3) return 2.5
 
+        // stronger, but smooth scaling: linear + superlinear term
         const level = equipmentLevel - 3
-        const raw = 2.5 + level * 1.7 + Math.pow(level, 1.2) * 0.95
+        const raw = 2.5 + level * 3.0 + Math.pow(level, 1.6) * 1.2
         return roundDownToHalf(raw)
     }
 
@@ -386,7 +387,8 @@ export function useGameState() {
         if (!path) return path
         if (/^https?:\/\//i.test(path)) return path
         const cleanPath = path.replace(/^\/+/, '')
-        return `/klikacka/${cleanPath}`
+        // Serve from web root so `/bosses/...` and `/sounds/...` work both locally and deployed
+        return `/${cleanPath}`
     }
     function isBoostAvailable(type: BoostType): boolean {
         return availableBoosts.value.includes(type)

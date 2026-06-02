@@ -365,6 +365,7 @@ function toggleMusicMute(): void {
         @sing="sing"
         @select-song="selectSong"
         @activate-boost="activateOwnedBoost"
+        @buy-song="buySong"
         @play-note="triggerManualNote"
       />
 

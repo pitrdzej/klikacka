@@ -45,6 +45,7 @@ const emit = defineEmits<{
   (e: 'select-song', index: number): void
   (e: 'activate-boost', type: 'click' | 'investor' | 'audience'): void
   (e: 'play-note', note: string, clientX: number, clientY: number): void
+  (e: 'buy-song'): void
 }>()
 
 const bossProgress = computed(() => {
@@ -280,6 +281,11 @@ const EXTENDED_KEYBOARD_ROWS = [
         <p class="keyboard-guide-help">
           Hraj přímo z klávesnice. Zvýrazněná políčka ukazují právě hranou notu.
         </p>
+
+        <div v-if="!hasExtendedKeyboard" class="extended-promo">
+          <p>Máte základní verzi. Některé klávesy (rozšířené) nejsou aktivní.</p>
+          <button class="buy-extended" @click="emit('buy-song')">Koupit rozšířenou verzi</button>
+        </div>
 
         <div class="keyboard-layout-grid">
           <div class="key-map-card">
