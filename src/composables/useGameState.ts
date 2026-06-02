@@ -276,7 +276,11 @@ export function useGameState() {
         return 250
     })
 
-    const investorIncome = computed<number>(() => calculateInvestorIncome(investors.value, equipment.value))
+    const investorIncome = computed<number>(() => {
+        const base = calculateInvestorIncome(investors.value, equipment.value)
+        // When investor boost is active, make payouts slightly higher (+15%)
+        return roundDownToHalf(base * (activeBoosts.value.includes('investor') ? 1.15 : 1))
+    })
     const investorIncomeIncreasePerPurchase = computed<number>(() => {
         const nextIncome = calculateInvestorIncome(investors.value + 1, equipment.value)
         return roundDownToHalf(nextIncome - investorIncome.value)
@@ -1320,8 +1324,8 @@ export function useGameState() {
                 type: 'investor',
                 label: 'Investor 1s',
                 icon: 'fa-solid fa-handshake',
-                effect: 'výplata každou 1 s',
-                tooltip: 'Investor 1s: investoři vyplácí příjem každou 1 sekundu po dobu 60 sekund.',
+                effect: 'výplata každou 1s',
+                tooltip: 'Investor 1s: investoři vyplácí příjem každou 1 sekundu po dobu 60 sekund. Během boostu navíc +15% výnosu.',
                 owned: isBoostAvailable('investor'),
                 active: activeBoosts.value.includes('investor')
             },
@@ -1350,8 +1354,8 @@ export function useGameState() {
                 type: 'investor',
                 label: 'Investor 1s',
                 icon: 'fa-solid fa-handshake',
-                effect: 'výplata každou 1 s',
-                description: 'Investoři budou posílat peníze každou 1 sekundu po dobu 60 sekund.'
+                effect: 'výplata každou 1s',
+                description: 'Investoři budou posílat peníze každou 1 sekundu po dobu 60 sekund. Během boostu navíc +15% výnosu.'
             }
         ]
 
