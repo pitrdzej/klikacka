@@ -102,12 +102,12 @@ function getNoteCandidates(note: string): string[] {
   if (czechName !== note) {
     // Files are named Cis4.mp3, Dis4.mp3 etc. – use Czech name as primary
     return [
-      `sounds/${czechName}.mp3`,
-      `sounds/${encodeURIComponent(note)}.mp3`
+      `/sounds/${czechName}.mp3`,
+      `/sounds/${encodeURIComponent(note)}.mp3`
     ]
   }
 
-  return [`sounds/${note}.mp3`]
+  return [`/sounds/${note}.mp3`]
 }
 
 function getAudioTemplate(note: string): HTMLAudioElement {
