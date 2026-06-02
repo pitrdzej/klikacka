@@ -152,8 +152,8 @@ const SONGS: Song[] = [
             'D4', 'E4', 'D4', 'C4'
         ]
     },
-    {
-        name: 'Levitating',
+        {
+            name: 'Starý farmář farmu měl',
         melody: [
                         // Old MacDonald (simplified, in C4)
                         'C4','C4','C4','G4','A4','A4','G4',
