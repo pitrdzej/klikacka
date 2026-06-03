@@ -29,6 +29,8 @@ type GameState = {
     activeBoost?: BoostType
     boostRemainingMs?: number
     lastSeenAt?: number
+    prestigeLevel?: number
+    prestigeBought?: boolean
 }
 
 type Song = {
@@ -51,6 +53,8 @@ const OFFLINE_HARD_MAX_SECONDS = 60 * 60 * 24
 const MIN_OFFLINE_REWARD_SECONDS = 60 * 60
 const SAVE_DEBOUNCE_MS = 500
 const BOOST_DURATION_SECONDS = 60
+const PRESTIGE_COST = 20_000_000
+const SAVE_EXPORT_KEY = 'klikacka-save-key-2026'
 const BOSS_MIN_DELAY_MS = 90_000
 const BOSS_MAX_DELAY_MS = 180_000
 const BOSS_DURATION_SECONDS = 23
@@ -58,7 +62,7 @@ const BOSS_WARNING_WINDOW_SECONDS = 60
 const BOSS_BAR_VISIBLE_SECONDS = 30
 const PLAYER_INACTIVE_MS = 15_000
 const BOSS_REENGAGE_CLICKS = 5
-const AUDIENCE_BASE_JOIN_DELAY_SECONDS = 18
+const AUDIENCE_BASE_JOIN_DELAY_SECONDS = 9
 const AUDIENCE_JOIN_DELAY_STEP_LEVELS = 3
 const AUDIENCE_MIN_JOIN_DELAY_SECONDS = 2
 const AUDIENCE_BASE_INCOME_INTERVAL_SECONDS = 30
@@ -189,6 +193,16 @@ export function useGameState() {
     const boostRewardPending = ref<boolean>(false)
     const audienceBossRewardUnlockedThisFight = ref<boolean>(false)
     const boostTimeLeftSeconds = ref<number>(0)
+    const prestigeLevel = ref<number>(0)
+    const prestigeBought = computed<boolean>(() => prestigeLevel.value >= 1)
+    const prestigeMultiplier = computed<number>(() => Math.pow(2, prestigeLevel.value))
+
+    const prestigeCost = computed<number>(() => {
+        if (prestigeLevel.value === 0) return PRESTIGE_COST
+        if (prestigeLevel.value === 1) return 200_000_000
+        return 0
+    })
+    const hasAllSongs = computed<boolean>(() => songLevel.value >= SONGS.length - 1)
 
     function calculateClickPower(equipmentLevel: number): number {
         if (equipmentLevel <= 1) return 1
@@ -203,8 +217,8 @@ export function useGameState() {
 
     const baseClickPower = computed<number>(() => calculateClickPower(equipment.value))
     const clickPower = computed<number>(() => {
-        const multiplier = activeBoosts.value.includes('click') ? 2 : 1
-        return roundDownToHalf(baseClickPower.value * multiplier)
+        const boostMultiplier = activeBoosts.value.includes('click') ? 2 : 1
+        return roundDownToHalf(baseClickPower.value * boostMultiplier * prestigeMultiplier.value)
     })
 
     function calculateInvestorCost(level: number, equipmentLevel: number): number {
@@ -279,10 +293,10 @@ export function useGameState() {
     const investorIncome = computed<number>(() => {
         const base = calculateInvestorIncome(investors.value, equipment.value)
         // When investor boost is active, make payouts slightly higher (+15%)
-        return roundDownToHalf(base * (activeBoosts.value.includes('investor') ? 1.15 : 1))
+        return roundDownToHalf(base * (activeBoosts.value.includes('investor') ? 1.15 : 1) * prestigeMultiplier.value)
     })
     const investorIncomeIncreasePerPurchase = computed<number>(() => {
-        const nextIncome = calculateInvestorIncome(investors.value + 1, equipment.value)
+        const nextIncome = calculateInvestorIncome(investors.value + 1, equipment.value) * prestigeMultiplier.value
         return roundDownToHalf(nextIncome - investorIncome.value)
     })
 
@@ -319,7 +333,7 @@ export function useGameState() {
 
     const audienceIncome = computed<number>(() => {
         const raw = audience.value * calculateTicketIncomePerPerson(ticketPrice.value)
-        return roundDownToHalf(raw)
+        return roundDownToHalf(raw * prestigeMultiplier.value)
     })
 
     const ticketIncomePerPerson = computed<number>(() => {
@@ -328,15 +342,15 @@ export function useGameState() {
 
     const ticketIncomeIncreasePerUpgrade = computed<number>(() => {
         const nextTicketPrice = ticketPrice.value + 2
-        const nextIncome = calculateTicketIncomePerPerson(nextTicketPrice)
-        const currentIncome = calculateTicketIncomePerPerson(ticketPrice.value)
+        const nextIncome = calculateTicketIncomePerPerson(nextTicketPrice) * prestigeMultiplier.value
+        const currentIncome = calculateTicketIncomePerPerson(ticketPrice.value) * prestigeMultiplier.value
         return roundDownToHalf(nextIncome - currentIncome)
     })
 
     const clickPowerIncreasePerUpgrade = computed<number>(() => {
         const nextClickPower = calculateClickPower(equipment.value + 1)
         const currentClickPower = calculateClickPower(equipment.value)
-        return roundDownToHalf(nextClickPower - currentClickPower)
+        return roundDownToHalf((nextClickPower - currentClickPower) * prestigeMultiplier.value)
     })
 
     const floatingTexts = ref<FloatingText[]>([])
@@ -534,6 +548,8 @@ export function useGameState() {
             songLevel: songLevel.value,
             selectedSongIndex: selectedSongIndex.value,
             bossWins: bossWins.value,
+            prestigeLevel: prestigeLevel.value,
+            prestigeBought: prestigeBought.value,
             pendingBoss: pendingBossForSave,
             pendingBossRemainingMs: pendingBossRemainingMs ?? undefined,
             audienceMembers: audienceMembers.value,
@@ -562,6 +578,47 @@ export function useGameState() {
         lastSavedState = serialized
     }
 
+    function xorBytes(bytes: Uint8Array, key: string): Uint8Array {
+        const keyBytes = new TextEncoder().encode(key) as Uint8Array
+        return bytes.map((byte, index) => {
+            const keyByte = keyBytes[index % keyBytes.length] ?? 0
+            return byte ^ keyByte
+        })
+    }
+
+    function encodeSaveData(payload: string): string {
+        const raw = new TextEncoder().encode(payload)
+        const obfuscated = xorBytes(raw, SAVE_EXPORT_KEY)
+        const binary = String.fromCharCode(...Array.from(obfuscated))
+        return btoa(binary)
+    }
+
+    function decodeSaveData(encoded: string): string | null {
+        try {
+            const binary = atob(encoded)
+            const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+            const restored = xorBytes(bytes, SAVE_EXPORT_KEY)
+            return new TextDecoder().decode(restored)
+        } catch {
+            return null
+        }
+    }
+
+    function exportSaveData(): string {
+        return encodeSaveData(JSON.stringify(buildGameState()))
+    }
+
+    function exportSaveFile(): void {
+        const content = exportSaveData()
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = 'klikacka-save.txt'
+        anchor.click()
+        URL.revokeObjectURL(url)
+    }
+
     function scheduleSaveGame(): void {
         if (saveTimeout) return
 
@@ -580,6 +637,85 @@ export function useGameState() {
         persistGameState(true)
     }
 
+    function applyGameState(gameState: GameState): number | null {
+        money.value = roundDownToHalf(Number(gameState.money) || 0)
+        investors.value = Number(gameState.investors) || 0
+        equipment.value = Number(gameState.equipment) || 1
+        ticketPrice.value = Number(gameState.ticketPrice) || 1
+        audience.value = Number(gameState.audience) || 0
+        capacity.value = Number(gameState.capacity) || 10
+        adLevel.value = Number(gameState.adLevel) || 0
+        songLevel.value = Math.min(Math.max(Number(gameState.songLevel) || 0, 0), SONGS.length - 1)
+        selectedSongIndex.value = Math.min(
+            Math.max(Number(gameState.selectedSongIndex) || 0, 0),
+            songLevel.value
+        )
+        bossWins.value = Math.max(Number(gameState.bossWins) || 0, 0)
+        prestigeLevel.value = Math.max(
+            0,
+            Number(gameState.prestigeLevel) || (gameState.prestigeBought ? 1 : 0)
+        )
+        const savedBoosts = Array.isArray(gameState.availableBoosts)
+            ? gameState.availableBoosts
+            : Array.isArray(gameState.unlockedBoosts)
+                ? gameState.unlockedBoosts
+                : []
+        availableBoosts.value = savedBoosts.filter((boost): boost is BoostType =>
+            boost === 'click' || boost === 'investor' || boost === 'audience'
+        )
+        boostClaimMilestones.value = {
+            click: Math.max(0, Number(gameState.boostClaimMilestones?.click) || 0),
+            investor: Math.max(0, Number(gameState.boostClaimMilestones?.investor) || 0),
+            audience: Math.max(0, Number(gameState.boostClaimMilestones?.audience) || 0)
+        }
+        const parsedActiveBoosts = Array.isArray(gameState.activeBoosts)
+            ? gameState.activeBoosts.filter((boost): boost is BoostType =>
+                boost === 'click' || boost === 'investor' || boost === 'audience'
+            )
+            : []
+
+        if (parsedActiveBoosts.length > 0) {
+            activeBoosts.value = parsedActiveBoosts
+            boostExpiresAt = {
+                click: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.click) || 0)),
+                investor: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.investor) || 0)),
+                audience: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.audience) || 0))
+            }
+        } else {
+            const legacyActiveBoost =
+                gameState.activeBoost === 'click' || gameState.activeBoost === 'investor' || gameState.activeBoost === 'audience'
+                    ? gameState.activeBoost
+                    : null
+            activeBoosts.value = legacyActiveBoost ? [legacyActiveBoost] : []
+            const legacyRemaining = Math.max(0, Math.floor(Number(gameState.boostRemainingMs) || 0))
+            boostExpiresAt = {
+                click: legacyActiveBoost === 'click' ? Date.now() + legacyRemaining : 0,
+                investor: legacyActiveBoost === 'investor' ? Date.now() + legacyRemaining : 0,
+                audience: legacyActiveBoost === 'audience' ? Date.now() + legacyRemaining : 0
+            }
+        }
+        updateBoostCountdown()
+        restoredPendingBoss =
+            gameState.pendingBoss &&
+            typeof gameState.pendingBoss.name === 'string' &&
+            typeof gameState.pendingBoss.fame === 'number' &&
+            typeof gameState.pendingBoss.image === 'string'
+                ? gameState.pendingBoss
+                : null
+        restoredPendingBossRemainingMs =
+            typeof gameState.pendingBossRemainingMs === 'number' && gameState.pendingBossRemainingMs >= 0
+                ? gameState.pendingBossRemainingMs
+                : null
+        audienceMembers.value = Array.isArray(gameState.audienceMembers)
+            ? gameState.audienceMembers.map((member) => ({
+                ...member,
+                hue: typeof member.hue === 'number' ? member.hue : Math.floor(Math.random() * 360)
+            }))
+            : []
+
+        return Number(gameState.lastSeenAt) || null
+    }
+
     const loadGame = (): number | null => {
         const saved = localStorage.getItem('klikacka-save')
 
@@ -587,81 +723,24 @@ export function useGameState() {
 
         try {
             const gameState = JSON.parse(saved) as GameState
-            money.value = roundDownToHalf(Number(gameState.money) || 0)
-            investors.value = Number(gameState.investors) || 0
-            equipment.value = Number(gameState.equipment) || 1
-            ticketPrice.value = Number(gameState.ticketPrice) || 1
-            audience.value = Number(gameState.audience) || 0
-            capacity.value = Number(gameState.capacity) || 10
-            adLevel.value = Number(gameState.adLevel) || 0
-            songLevel.value = Math.min(Math.max(Number(gameState.songLevel) || 0, 0), SONGS.length - 1)
-            selectedSongIndex.value = Math.min(
-                Math.max(Number(gameState.selectedSongIndex) || 0, 0),
-                songLevel.value
-            )
-            bossWins.value = Math.max(Number(gameState.bossWins) || 0, 0)
-            const savedBoosts = Array.isArray(gameState.availableBoosts)
-                ? gameState.availableBoosts
-                : Array.isArray(gameState.unlockedBoosts)
-                    ? gameState.unlockedBoosts
-                    : []
-            availableBoosts.value = savedBoosts.filter((boost): boost is BoostType =>
-                boost === 'click' || boost === 'investor' || boost === 'audience'
-            )
-            boostClaimMilestones.value = {
-                click: Math.max(0, Number(gameState.boostClaimMilestones?.click) || 0),
-                investor: Math.max(0, Number(gameState.boostClaimMilestones?.investor) || 0),
-                audience: Math.max(0, Number(gameState.boostClaimMilestones?.audience) || 0)
-            }
-            const parsedActiveBoosts = Array.isArray(gameState.activeBoosts)
-                ? gameState.activeBoosts.filter((boost): boost is BoostType =>
-                    boost === 'click' || boost === 'investor' || boost === 'audience'
-                )
-                : []
-
-            if (parsedActiveBoosts.length > 0) {
-                activeBoosts.value = parsedActiveBoosts
-                boostExpiresAt = {
-                    click: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.click) || 0)),
-                    investor: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.investor) || 0)),
-                    audience: Date.now() + Math.max(0, Math.floor(Number(gameState.boostRemainingByTypeMs?.audience) || 0))
-                }
-            } else {
-                const legacyActiveBoost =
-                    gameState.activeBoost === 'click' || gameState.activeBoost === 'investor' || gameState.activeBoost === 'audience'
-                        ? gameState.activeBoost
-                        : null
-                activeBoosts.value = legacyActiveBoost ? [legacyActiveBoost] : []
-                const legacyRemaining = Math.max(0, Math.floor(Number(gameState.boostRemainingMs) || 0))
-                boostExpiresAt = {
-                    click: legacyActiveBoost === 'click' ? Date.now() + legacyRemaining : 0,
-                    investor: legacyActiveBoost === 'investor' ? Date.now() + legacyRemaining : 0,
-                    audience: legacyActiveBoost === 'audience' ? Date.now() + legacyRemaining : 0
-                }
-            }
-            updateBoostCountdown()
-            restoredPendingBoss =
-                gameState.pendingBoss &&
-                typeof gameState.pendingBoss.name === 'string' &&
-                typeof gameState.pendingBoss.fame === 'number' &&
-                typeof gameState.pendingBoss.image === 'string'
-                    ? gameState.pendingBoss
-                    : null
-            restoredPendingBossRemainingMs =
-                typeof gameState.pendingBossRemainingMs === 'number' && gameState.pendingBossRemainingMs >= 0
-                    ? gameState.pendingBossRemainingMs
-                    : null
-            audienceMembers.value = Array.isArray(gameState.audienceMembers)
-                ? gameState.audienceMembers.map((member) => ({
-                    ...member,
-                    hue: typeof member.hue === 'number' ? member.hue : Math.floor(Math.random() * 360)
-                }))
-                : []
-
-            return Number(gameState.lastSeenAt) || null
+            return applyGameState(gameState)
         } catch (e) {
             console.warn('Hru se bohužel nepodařilo uložit: ', e)
             return null
+        }
+    }
+
+    function importSaveString(encoded: string): boolean {
+        const decoded = decodeSaveData(encoded.trim())
+        if (!decoded) return false
+
+        try {
+            const gameState = JSON.parse(decoded) as GameState
+            applyGameState(gameState)
+            saveGame()
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -1139,7 +1218,8 @@ export function useGameState() {
         if (investors.value < hallInvestorRequirement.value) return
 
         investors.value -= hallInvestorRequirement.value
-        capacity.value += hallCapacityIncrease.value
+        const add = Math.max(1, Math.floor(hallCapacityIncrease.value * prestigeMultiplier.value))
+        capacity.value += add
         scheduleSaveGame()
     }
 
@@ -1159,6 +1239,59 @@ export function useGameState() {
         selectedSongIndex.value = songLevel.value
         melodyIndex.value = 0
         scheduleSaveGame()
+    }
+
+    function resetAfterPrestige(): void {
+        money.value = 0
+        investors.value = 0
+        equipment.value = 1
+        ticketPrice.value = 1
+        audience.value = 0
+        capacity.value = 10
+        adLevel.value = 0
+        songLevel.value = 0
+        selectedSongIndex.value = 0
+        availableBoosts.value = []
+        boostClaimMilestones.value = {
+            click: 0,
+            investor: 0,
+            audience: 0
+        }
+        activeBoosts.value = []
+        boostRewardPending.value = false
+        audienceBossRewardUnlockedThisFight.value = false
+        boostTimeLeftSeconds.value = 0
+        audienceMembers.value = []
+        melodyIndex.value = 0
+        bossActive.value = false
+        bossTimeLeftSeconds.value = 0
+        bossFightDurationSeconds.value = BOSS_DURATION_SECONDS
+        bossClicksRequired.value = 0
+        bossClicksDone.value = 0
+        bossWarningText.value = ''
+        bossIncomingName.value = ''
+        bossIncomingImage.value = ''
+        bossCurrentName.value = ''
+        bossCurrentImage.value = ''
+        bossNextInSeconds.value = 0
+        bossSpawnProgress.value = 0
+        bossResultText.value = ''
+        bossResultTone.value = 'success'
+        bossWins.value = 0
+        pendingBoss = null
+        clearBossScheduleTimers()
+        lastInteractionAt.value = Date.now()
+    }
+
+    function buyPrestige(): void {
+        if (prestigeLevel.value >= 2) return
+        if (money.value < prestigeCost.value) return
+        if (!hasAllSongs.value) return
+        if (bossWins.value < 20) return
+
+        prestigeLevel.value += 1
+        resetAfterPrestige()
+        saveGame()
     }
 
     function selectSong(index: number): void {
@@ -1220,6 +1353,13 @@ export function useGameState() {
     onMounted(() => {
         const lastSeenAt = loadGame()
         applyOfflineEarnings(lastSeenAt)
+        // Seed a small starting audience for new games so players feel progress immediately
+        if (audience.value === 0 && audienceMembers.value.length === 0) {
+            for (let i = 0; i < 6; i++) {
+                addAudienceMember()
+            }
+            scheduleSaveGame()
+        }
         if (maybeUnlockProgressBoosts()) {
             scheduleSaveGame()
         }
@@ -1402,6 +1542,7 @@ export function useGameState() {
         audienceStaySeconds,
         ticketIncomePerPerson,
         ticketIncomeIncreasePerUpgrade,
+        bossWins,
         bossBarVisibleSeconds: BOSS_BAR_VISIBLE_SECONDS,
         clickPowerIncreasePerUpgrade,
         floatingTexts,
@@ -1439,6 +1580,14 @@ export function useGameState() {
         buyHall,
         buyTickets,
         buySong,
+        buyPrestige,
+        exportSaveFile,
+        importSaveString,
+        prestigeLevel,
+        prestigeBought,
+        prestigeMultiplier,
+        prestigeCost,
+        hasAllSongs,
         selectSong
     }
 }

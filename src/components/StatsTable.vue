@@ -14,6 +14,7 @@ defineProps<{
   investorIncomeIntervalSeconds: number
   audienceIncome: number
   audienceIncomeIntervalSeconds: number
+  prestigeMultiplier: number
 }>()
 </script>
 
@@ -45,6 +46,10 @@ defineProps<{
         <tr>
           <td>Výdělek za 1 klik</td>
           <td>{{ formatHalfStep(clickPower) }}$</td>
+        </tr>
+        <tr>
+          <td>Prestižní bonus</td>
+          <td>x{{ formatHalfStep(prestigeMultiplier) }}</td>
         </tr>
         <tr>
           <td>Publikum zůstává</td>

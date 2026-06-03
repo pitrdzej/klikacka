@@ -25,6 +25,12 @@ const props = defineProps<{
   currentSongName: string
   nextSongName: string
   hasNextSong: boolean
+  bossWins: number
+  hasAllSongs: boolean
+  prestigeBought: boolean
+  prestigeCost: number
+  prestigeLevel: number
+  prestigeMultiplier: number
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +40,7 @@ const emit = defineEmits<{
   (e: 'buy-hall'): void
   (e: 'buy-tickets'): void
   (e: 'buy-song'): void
+  (e: 'buy-prestige'): void
 }>()
 
 const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
@@ -58,7 +65,7 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
 
     <section class="upgrade shop-upgrade" :class="{ ready: money >= equipmentCost }" @click="emit('buy-equipment')">
       <h3><i class="fa-solid fa-music"></i> Vybavení</h3>
-      <p class="desc">+{{ formatHalfStep(clickPowerIncreasePerUpgrade) }}$ / klik za upgrade</p>
+      <p class="desc">+{{ formatHalfStep(clickPowerIncreasePerUpgrade) }}$ / klik za upgrade <span v-if="prestigeLevel >= 1" class="small-note">(s prestiží x{{ formatHalfStep(prestigeMultiplier) }})</span></p>
       <p class="price" :class="{ disabled: money < equipmentCost }">${{ formatHalfStep(equipmentCost) }}</p>
     </section>
 
@@ -81,6 +88,25 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
       <p class="desc" v-else>Všechny písničky odemčeny</p>
       <p class="price" :class="{ disabled: !hasNextSong || money < nextSongCost }">
         {{ hasNextSong ? '$' + formatHalfStep(nextSongCost) : 'Vše odemčeno' }}
+      </p>
+    </section>
+
+    <section class="upgrade shop-upgrade prestige" :class="{ ready: prestigeLevel >= 2 || (money >= prestigeCost && hasAllSongs && bossWins >= 20), active: prestigeLevel >= 1 }">
+      <h3><i class="fa-solid fa-crown"></i> Prestiž</h3>
+      <p class="desc">Trvalý efekt: každá prestiž výrazně zrychlí výdělek, kliky, publikum i kapacitu.</p>
+      <p class="prestige-value">Aktuální bonus: <strong>x{{ formatHalfStep(prestigeMultiplier) }}</strong></p>
+      <p class="prestige-status" v-if="prestigeLevel === 0">Koupíš první prestiž, resetuješ hru a začneš silněji.</p>
+      <p class="prestige-status" v-else-if="prestigeLevel === 1">První prestiž aktivní. Odemkněte druhou pro ještě větší násobek.</p>
+      <p class="prestige-status" v-else>Maximální prestiž. Vše se teď pohybuje rychleji a vydělává víc.</p>
+      <ul class="prestige-conds">
+        <li :class="{ ok: money >= prestigeCost }">Cena: alespoň ${{ formatHalfStep(prestigeCost) }}</li>
+        <li :class="{ ok: hasAllSongs }">Všechny písně odemčeny</li>
+        <li :class="{ ok: bossWins >= 20 }">Porazil jsi alespoň 20 bossů ({{ bossWins }})</li>
+      </ul>
+      <p class="price" :class="{ disabled: prestigeLevel >= 2 || money < prestigeCost || !hasAllSongs || bossWins < 20 }">
+        <button class="prestige-button" :disabled="prestigeLevel >= 2 || money < prestigeCost || !hasAllSongs || bossWins < 20" @click.prevent="emit('buy-prestige')">
+          {{ prestigeLevel >= 2 ? 'Prestiž max' : prestigeLevel === 1 ? 'Koupit druhou prestiž' : 'Koupit prestiž' }}
+        </button>
       </p>
     </section>
   </aside>
@@ -148,5 +174,107 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
 .shop-upgrade .price:not(.disabled) {
   color: #ff7d96;
   text-shadow: 0 0 10px rgba(255, 77, 109, 0.2);
+}
+
+.shop-upgrade.prestige {
+  background: rgba(89, 44, 78, 0.98);
+  border: 1px solid rgba(255, 204, 102, 0.14);
+}
+
+.prestige-conds {
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.prestige-conds li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.92rem;
+}
+
+.prestige-conds li.ok {
+  color: #b6ffae;
+}
+
+.prestige-conds li::before {
+  content: '•';
+  color: currentColor;
+}
+
+.prestige-conds li.ok::before {
+  content: '✓';
+}
+
+.prestige-conds li:not(.ok) {
+  opacity: 0.7;
+}
+
+.prestige-conds li:not(.ok)::before {
+  color: #ff7d96;
+}
+
+.shop-upgrade.prestige.active {
+  background: linear-gradient(145deg, rgba(255, 204, 102, 0.14), rgba(255, 191, 40, 0.2));
+  border-color: rgba(255, 191, 40, 0.4);
+}
+
+.prestige-value {
+  margin: 0.75rem 0 0.2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffdc82;
+  text-shadow: 0 0 10px rgba(255, 220, 130, 0.25);
+}
+
+.prestige-highlight {
+  margin-top: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.9rem;
+  background: rgba(255, 199, 111, 0.1);
+  color: #ffe7c4;
+  font-weight: 600;
+}
+
+.small-note {
+  display: inline-block;
+  margin-left: 0.3rem;
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.prestige-status {
+  margin-top: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  background: rgba(182, 255, 174, 0.12);
+  color: #d5ffd0;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.prestige-button {
+  width: 100%;
+  border: none;
+  background: linear-gradient(135deg, #ffbe4b, #ff8c63);
+  color: #1b0d00;
+  font-weight: 700;
+  padding: 0.8rem 1rem;
+  border-radius: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.prestige-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(255, 140, 99, 0.22);
+}
+
+.prestige-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

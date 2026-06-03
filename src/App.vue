@@ -8,7 +8,7 @@ import StatsTable from '@/components/StatsTable.vue'
 import OfflineToast from '@/components/OfflineToast.vue'
 import BossResultToast from '@/components/BossResultToast.vue'
 import { useGameState } from '@/composables/useGameState'
-import { playNote, setNotesMuted } from '@/utils/notes'
+import { playNote, setNotesMuted, setNotesVolume } from '@/utils/notes'
 
 type BoostKind = 'click' | 'investor' | 'audience'
 
@@ -78,17 +78,79 @@ const {
   buyHall,
   buyTickets,
   buySong,
+  buyPrestige,
+  exportSaveFile,
+  importSaveString,
+  bossWins,
+  prestigeLevel,
+  prestigeBought,
+  prestigeMultiplier,
+  prestigeCost,
   selectSong
 } = useGameState()
 
 const isMusicMuted = ref<boolean>(localStorage.getItem('musicMuted') === '1')
+const musicVolume = ref<number>(Number(localStorage.getItem('musicVolume') || '80'))
 setNotesMuted(isMusicMuted.value)
+setNotesVolume(musicVolume.value / 100)
 
 const saveFlash = ref<boolean>(false)
+const importStatus = ref<string>('')
+const importFileInput = ref<HTMLInputElement | null>(null)
 function handleSave(): void {
   saveGame()
   saveFlash.value = true
   setTimeout(() => { saveFlash.value = false }, 1500)
+}
+
+function handleExportSave(): void {
+  exportSaveFile()
+  importStatus.value = 'Soubor uložen.'
+}
+
+function triggerImportSave(): void {
+  importStatus.value = ''
+  importFileInput.value?.click()
+}
+
+function handleImportFileChange(event: Event): void {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const contents = typeof reader.result === 'string' ? reader.result : ''
+    const result = importSaveString(contents)
+    importStatus.value = result ? 'Uložení načteno.' : 'Neplatný nebo poškozený save soubor.'
+    if (result) {
+      saveFlash.value = true
+      setTimeout(() => { saveFlash.value = false }, 1500)
+    }
+    target.value = ''
+  }
+  reader.onerror = () => {
+    importStatus.value = 'Nepodařilo se načíst soubor.'
+    target.value = ''
+  }
+  reader.readAsText(file)
+}
+
+function handleVolumeChange(event: Event): void {
+  const value = Number((event.target as HTMLInputElement).value)
+  musicVolume.value = Math.max(0, Math.min(100, value))
+  localStorage.setItem('musicVolume', musicVolume.value.toString())
+
+  if (musicVolume.value <= 0) {
+    isMusicMuted.value = true
+    setNotesMuted(true)
+  } else {
+    if (isMusicMuted.value) {
+      isMusicMuted.value = false
+      setNotesMuted(false)
+    }
+    setNotesVolume(musicVolume.value / 100)
+  }
 }
 
 const showKeyboardHelp = ref<boolean>(false)
@@ -143,6 +205,9 @@ function activateOwnedBoost(type: BoostKind): void {
 function toggleMusicMute(): void {
   isMusicMuted.value = !isMusicMuted.value
   setNotesMuted(isMusicMuted.value)
+  if (!isMusicMuted.value) {
+    setNotesVolume(musicVolume.value / 100)
+  }
   localStorage.setItem('musicMuted', isMusicMuted.value ? '1' : '0')
 }
 </script>
@@ -153,7 +218,8 @@ function toggleMusicMute(): void {
     <BossResultToast :text="bossResultText" :tone="bossResultTone" />
     <header>
       <a class="logo interactive-logo" @click="playLogoChord">
-        <i class="fa-solid fa-microphone"></i>
+          <i class="fa-solid fa-microphone"></i>
+          <span v-if="prestigeLevel >= 1" class="prestige-badge">{{ prestigeLevel === 1 ? 'Premium' : 'Ultra' }}</span>
       </a>
       <nav class="mobile-header-links header-center-links">
         <button @click="scrollToSection('shop-section')">Vylepšení</button>
@@ -175,6 +241,23 @@ function toggleMusicMute(): void {
               <i :class="isMusicMuted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high'"></i>
               <span>{{ isMusicMuted ? 'Zapnout hudbu' : 'Vypnout hudbu' }}</span>
             </button>
+            <div class="settings-item volume-item">
+              <i class="fa-solid fa-sliders"></i>
+              <div class="volume-control">
+                <label for="music-volume">Hlasitost hudby</label>
+                <input
+                  id="music-volume"
+                  class="volume-slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  :value="musicVolume"
+                  @input="handleVolumeChange"
+                />
+                <span>{{ musicVolume }}%</span>
+              </div>
+            </div>
             <button class="settings-item" @click="toggleKeyboardHelp">
               <i class="fa-solid fa-keyboard"></i>
               <span>{{ showKeyboardHelp ? 'Skrýt nápovědu kláves' : 'Zobrazit nápovědu kláves' }}</span>
@@ -183,6 +266,16 @@ function toggleMusicMute(): void {
               <i class="fa-solid fa-save"></i>
               <span>{{ saveFlash ? 'Uloženo!' : 'Uložit hru' }}</span>
             </button>
+            <button class="settings-item" @click="handleExportSave">
+              <i class="fa-solid fa-download"></i>
+              <span>Exportovat save</span>
+            </button>
+            <button class="settings-item" @click="triggerImportSave">
+              <i class="fa-solid fa-upload"></i>
+              <span>Importovat save</span>
+            </button>
+            <input ref="importFileInput" type="file" accept=".txt,.save,.dat" style="display:none" @change="handleImportFileChange" />
+            <div class="import-status" v-if="importStatus">{{ importStatus }}</div>
           </div>
         </div>
       </nav>
@@ -321,6 +414,12 @@ function toggleMusicMute(): void {
         :next-song-name="nextSongName"
         :hall-investor-requirement="hallInvestorRequirement"
         :hall-capacity-increase="hallCapacityIncrease"
+        :boss-wins="bossWins"
+        :has-all-songs="!hasNextSong"
+        :prestige-bought="prestigeBought"
+        :prestige-level="prestigeLevel"
+        :prestige-multiplier="prestigeMultiplier"
+        :prestige-cost="prestigeCost"
         :ticket-income-increase-per-upgrade="ticketIncomeIncreasePerUpgrade"
         :click-power-increase-per-upgrade="clickPowerIncreasePerUpgrade"
         :audience-join-delay-seconds="audienceJoinDelaySeconds"
@@ -332,6 +431,7 @@ function toggleMusicMute(): void {
         @buy-hall="buyHall"
         @buy-tickets="buyTickets"
         @buy-song="buySong"
+        @buy-prestige="buyPrestige"
       />
 
       <ClickStage
@@ -362,6 +462,8 @@ function toggleMusicMute(): void {
         :boost-slots="boostSlots"
         :boost-time-left-seconds="boostTimeLeftSeconds"
         :show-keyboard-help="showKeyboardHelp"
+        :prestige-level="prestigeLevel"
+        :prestige-multiplier="prestigeMultiplier"
         @sing="sing"
         @select-song="selectSong"
         @activate-boost="activateOwnedBoost"
@@ -383,6 +485,7 @@ function toggleMusicMute(): void {
         :investor-income-interval-seconds="investorIncomeIntervalSeconds"
         :audience-income="audienceIncome"
         :audience-income-interval-seconds="audienceIncomeIntervalSeconds"
+        :prestige-multiplier="prestigeMultiplier"
       />
 
     </main>
@@ -404,6 +507,21 @@ header {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
+}
+
+.prestige-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0.08rem 0.36rem;
+  background: linear-gradient(135deg,#ffd27a,#ff9bb0);
+  color: #2b0b00;
+  font-weight: 800;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  line-height: 1;
+  transform: translateY(-8px);
+  vertical-align: top;
+  box-shadow: 0 6px 18px rgba(255,155,144,0.12);
 }
 
 nav {
@@ -489,6 +607,33 @@ nav {
 
 .settings-item:hover {
   background: rgba(71, 85, 105, 0.45);
+}
+
+.settings-item.volume-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.volume-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.volume-control label {
+  font-size: 0.78rem;
+  color: #f8fafc;
+}
+
+.volume-slider {
+  width: 100%;
+}
+
+.volume-control span {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  text-align: right;
 }
 
 .boost-reward-banner {

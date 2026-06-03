@@ -77,6 +77,7 @@ const EXTENDED_CODE_NOTE_KEYS: Record<string, string> = {
 
 const audioTemplateCache: Record<string, HTMLAudioElement> = {}
 let notesMuted = false
+let notesVolume = 1
 
 function normalizeNoteName(note: string): string {
   return note
@@ -136,11 +137,16 @@ export function playNote(note: string): void {
 
   const audio = getAudioTemplate(note).cloneNode() as HTMLAudioElement
   audio.currentTime = 0
+  audio.volume = notesVolume
   audio.play().catch(() => {})
 }
 
 export function setNotesMuted(muted: boolean): void {
   notesMuted = muted
+}
+
+export function setNotesVolume(volume: number): void {
+  notesVolume = Math.max(0, Math.min(1, volume))
 }
 
 export function keyToNote(key: string, code?: string): string | null {
