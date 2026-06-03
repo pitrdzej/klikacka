@@ -65,7 +65,7 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
 
     <section class="upgrade shop-upgrade" :class="{ ready: money >= equipmentCost }" @click="emit('buy-equipment')">
       <h3><i class="fa-solid fa-music"></i> Vybavení</h3>
-      <p class="desc">+{{ formatHalfStep(clickPowerIncreasePerUpgrade) }}$ / klik za upgrade <span v-if="prestigeLevel >= 1" class="small-note">(s prestiží x{{ formatHalfStep(prestigeMultiplier) }})</span></p>
+      <p class="desc">+{{ formatHalfStep(clickPowerIncreasePerUpgrade) }}$ / klik za upgrade</p>
       <p class="price" :class="{ disabled: money < equipmentCost }">${{ formatHalfStep(equipmentCost) }}</p>
     </section>
 
@@ -239,12 +239,7 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
   font-weight: 600;
 }
 
-.small-note {
-  display: inline-block;
-  margin-left: 0.3rem;
-  font-size: 0.84rem;
-  color: rgba(255, 255, 255, 0.78);
-}
+/* removed .small-note: prestige is applied automatically */
 
 .prestige-status {
   margin-top: 0.6rem;

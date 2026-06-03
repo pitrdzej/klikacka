@@ -55,12 +55,12 @@ const SAVE_DEBOUNCE_MS = 500
 const BOOST_DURATION_SECONDS = 60
 const PRESTIGE_COST = 20_000_000
 const SAVE_EXPORT_KEY = 'klikacka-save-key-2026'
-const BOSS_MIN_DELAY_MS = 90_000
-const BOSS_MAX_DELAY_MS = 180_000
+const BOSS_MIN_DELAY_MS = 180_000
+const BOSS_MAX_DELAY_MS = 240_000
 const BOSS_DURATION_SECONDS = 23
 const BOSS_WARNING_WINDOW_SECONDS = 60
 const BOSS_BAR_VISIBLE_SECONDS = 30
-const PLAYER_INACTIVE_MS = 15_000
+const PLAYER_INACTIVE_MS = 60_000
 const BOSS_REENGAGE_CLICKS = 5
 const AUDIENCE_BASE_JOIN_DELAY_SECONDS = 9
 const AUDIENCE_JOIN_DELAY_STEP_LEVELS = 3
@@ -1020,11 +1020,6 @@ export function useGameState() {
         updateBossIncomingCountdown()
 
         bossSpawnTimeout = setTimeout(() => {
-            if (!isPlayerActive()) {
-                setBossReengageGate('Nejsi aktivní.')
-                return
-            }
-
             startBossFight(pendingBoss ?? pickRandomBoss())
         }, delay)
     }
@@ -1045,11 +1040,6 @@ export function useGameState() {
         updateBossIncomingCountdown()
 
         bossSpawnTimeout = setTimeout(() => {
-            if (!isPlayerActive()) {
-                setBossReengageGate('Nejsi aktivní.')
-                return
-            }
-
             startBossFight(pendingBoss ?? pickRandomBoss())
         }, safeDelay)
     }
@@ -1071,10 +1061,7 @@ export function useGameState() {
         )
         const durationSeconds = 21 + Math.floor(Math.random() * 6)
 
-        if (!isPlayerActive()) {
-            setBossReengageGate('Nejsi aktivní.')
-            return
-        }
+
 
         bossActive.value = true
         clearBossScheduleTimers()
