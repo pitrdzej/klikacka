@@ -47,9 +47,6 @@ function openKeyboardHelp(): void {
     <div class="milestone-header">
       <div>
         <h3>Rozšířené piano</h3>
-        <p class="status-note">
-          {{ extendedPianoUnlocked ? 'Klikni na stav pro zapnutí/vypnutí a otevři nápovědu kláves pod ním.' : 'Odemkne se po 20 investorech, 10 vylepšeních a 80 kapacitě.' }}
-        </p>
       </div>
       <span class="status-chip" :class="statusClass" @click="handleToggle">
         {{ statusLabel }}
@@ -70,7 +67,7 @@ function openKeyboardHelp(): void {
         <strong>{{ investors }}/20</strong>
       </li>
       <li :class="{ ok: totalUpgradeCount >= 10 }">
-        <span>Vylepšení</span>
+        <span>Vybavení</span>
         <strong>{{ totalUpgradeCount }}/10</strong>
       </li>
       <li :class="{ ok: capacity >= 80 }">
