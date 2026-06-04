@@ -90,6 +90,14 @@ const audioTemplateCache: Record<string, HTMLAudioElement> = {}
 let notesMuted = false
 let notesVolume = 1
 
+const publicAssetBase = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`
+
+function publicAssetPath(path: string): string {
+  return `${publicAssetBase}${path.replace(/^\/+/, '')}`
+}
+
 function normalizeNoteName(note: string): string {
   return note
     .replace(/^Cis/i, 'C#')
@@ -114,28 +122,26 @@ function getNoteCandidates(note: string): string[] {
   if (czechName !== note) {
     // Files are named Cis4.mp3, Dis4.mp3 etc. – use Czech name as primary
     return [
-      `/sounds/${czechName}.mp3`,
-      `/sounds/${encodeURIComponent(note)}.mp3`
+      publicAssetPath(`sounds/${czechName}.mp3`),
+      publicAssetPath(`sounds/${encodeURIComponent(note)}.mp3`)
     ]
   }
 
-  return [`/sounds/${note}.mp3`]
+  return [publicAssetPath(`sounds/${note}.mp3`)]
 }
 
 function getAudioTemplate(note: string): HTMLAudioElement {
-  const normalized = normalizeNoteName(note)
+    const normalized = normalizeNoteName(note)
 
   if (!audioTemplateCache[normalized]) {
     const candidates = getNoteCandidates(normalized)
-    const primary = candidates[0] ?? `sounds/${encodeURIComponent(normalized)}.mp3`
+    const primary = candidates[0] ?? publicAssetPath(`sounds/${encodeURIComponent(normalized)}.mp3`)
     const fallback = candidates[1]
     const audio = new Audio(primary)
     audio.preload = 'auto'
     if (fallback) {
       audio.addEventListener('error', () => {
-        if (audio.src.endsWith(primary)) {
-          audio.src = fallback
-        }
+        audio.src = fallback
       }, { once: true })
     }
     audioTemplateCache[normalized] = audio
