@@ -46,7 +46,17 @@ export const EXTENDED_NOTE_KEYS: Record<string, string> = {
   i: 'F5',
   o: 'G5',
   p: 'A5',
-  l: 'B5'
+  l: 'B5',
+  '1': 'C#3',
+  '2': 'D#3',
+  '3': 'F#3',
+  '4': 'G#3',
+  '5': 'A#3',
+  '6': 'C#5',
+  '7': 'D#5',
+  '8': 'F#5',
+  '9': 'G#5',
+  '0': 'A#5'
 }
 
 const EXTENDED_CODE_NOTE_KEYS: Record<string, string> = {
@@ -59,6 +69,7 @@ const EXTENDED_CODE_NOTE_KEYS: Record<string, string> = {
   KeyN: 'A3',
   KeyM: 'B3',
   KeyR: 'D5',
+  KeyY: 'E5',
   KeyI: 'F5',
   KeyO: 'G5',
   KeyP: 'A5',
@@ -184,4 +195,41 @@ export const PIANO_BLACK_KEYS: Array<PianoDisplayKey | null> = [
   { note: 'G#4', label: 'Z' },
   { note: 'A#4', label: 'U' },
   null
+]
+
+export const EXTENDED_LOWER_BLACK_KEYS: Array<PianoDisplayKey | null> = [
+  { note: 'C#3', label: '1' },
+  { note: 'D#3', label: '2' },
+  null,
+  { note: 'F#3', label: '3' },
+  { note: 'G#3', label: '4' },
+  { note: 'A#3', label: '5' }
+]
+
+export const EXTENDED_LOWER_WHITE_KEYS: PianoDisplayKey[] = [
+  { note: 'C3', label: 'Q' },
+  { note: 'D3', label: 'X' },
+  { note: 'E3', label: 'C' },
+  { note: 'F3', label: 'V' },
+  { note: 'G3', label: 'B' },
+  { note: 'A3', label: 'N' },
+  { note: 'B3', label: 'M' }
+]
+
+export const EXTENDED_HIGHER_BLACK_KEYS: Array<PianoDisplayKey | null> = [
+  { note: 'C#5', label: '6' },
+  { note: 'D#5', label: '7' },
+  null,
+  { note: 'F#5', label: '8' },
+  { note: 'G#5', label: '9' },
+  { note: 'A#5', label: '0' }
+]
+
+export const EXTENDED_HIGHER_WHITE_KEYS: PianoDisplayKey[] = [
+  { note: 'D5', label: 'R' },
+  { note: 'E5', label: 'Y' },
+  { note: 'F5', label: 'I' },
+  { note: 'G5', label: 'O' },
+  { note: 'A5', label: 'P' },
+  { note: 'B5', label: 'L' }
 ]

@@ -26,7 +26,9 @@ const props = defineProps<{
   nextSongName: string
   hasNextSong: boolean
   bossWins: number
-  hasAllSongs: boolean
+  unlockedSongCount: number
+  prestigeRequiredSongCount: number
+  hasPrestigeSongRequirement: boolean
   prestigeBought: boolean
   prestigeCost: number
   prestigeLevel: number
@@ -91,7 +93,7 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
       </p>
     </section>
 
-    <section class="upgrade shop-upgrade prestige" :class="{ ready: prestigeLevel >= 2 || (money >= prestigeCost && hasAllSongs && bossWins >= 20), active: prestigeLevel >= 1 }">
+    <section class="upgrade shop-upgrade prestige" :class="{ ready: prestigeLevel >= 2 || (money >= prestigeCost && hasPrestigeSongRequirement && bossWins >= 20), active: prestigeLevel >= 1 }">
       <h3><i class="fa-solid fa-crown"></i> Prestiž</h3>
       <p class="desc">Trvalý efekt: každá prestiž výrazně zrychlí výdělek, kliky, publikum i kapacitu.</p>
       <p class="prestige-value">Aktuální bonus: <strong>x{{ formatHalfStep(prestigeMultiplier) }}</strong></p>
@@ -100,11 +102,11 @@ const adPeoplePerCycle = computed(() => 3 + Math.floor(props.adLevel * 0.35))
       <p class="prestige-status" v-else>Maximální prestiž. Vše se teď pohybuje rychleji a vydělává víc.</p>
       <ul class="prestige-conds">
         <li :class="{ ok: money >= prestigeCost }">Cena: alespoň ${{ formatHalfStep(prestigeCost) }}</li>
-        <li :class="{ ok: hasAllSongs }">Všechny písně odemčeny</li>
+        <li :class="{ ok: hasPrestigeSongRequirement }">Odemčeno alespoň {{ prestigeRequiredSongCount }} písní ({{ unlockedSongCount }})</li>
         <li :class="{ ok: bossWins >= 20 }">Porazil jsi alespoň 20 bossů ({{ bossWins }})</li>
       </ul>
-      <p class="price" :class="{ disabled: prestigeLevel >= 2 || money < prestigeCost || !hasAllSongs || bossWins < 20 }">
-        <button class="prestige-button" :disabled="prestigeLevel >= 2 || money < prestigeCost || !hasAllSongs || bossWins < 20" @click.prevent="emit('buy-prestige')">
+      <p class="price" :class="{ disabled: prestigeLevel >= 2 || money < prestigeCost || !hasPrestigeSongRequirement || bossWins < 20 }">
+        <button class="prestige-button" :disabled="prestigeLevel >= 2 || money < prestigeCost || !hasPrestigeSongRequirement || bossWins < 20" @click.prevent="emit('buy-prestige')">
           {{ prestigeLevel >= 2 ? 'Prestiž max' : prestigeLevel === 1 ? 'Koupit druhou prestiž' : 'Koupit prestiž' }}
         </button>
       </p>

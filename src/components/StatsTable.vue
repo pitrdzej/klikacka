@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { formatHalfStep } from '@/utils/number'
+import ExtendedPianoBox from '@/components/stats/ExtendedPianoBox.vue'
 
-defineProps<{
+const props = defineProps<{
   investors: number
   adLevel: number
   audience: number
@@ -15,7 +16,12 @@ defineProps<{
   audienceIncome: number
   audienceIncomeIntervalSeconds: number
   prestigeMultiplier: number
+  extendedPianoEnabled: boolean
+  extendedPianoUnlocked: boolean
+  totalUpgradeCount: number
 }>()
+
+defineEmits(['toggle-extended-piano', 'show-keyboard-help'])
 </script>
 
 <template>
@@ -65,6 +71,16 @@ defineProps<{
         </tr>
       </tbody>
     </table>
+
+    <ExtendedPianoBox
+      :investors="investors"
+      :total-upgrade-count="totalUpgradeCount"
+      :capacity="capacity"
+      :extended-piano-enabled="extendedPianoEnabled"
+      :extended-piano-unlocked="extendedPianoUnlocked"
+      @toggle-extended-piano="$emit('toggle-extended-piano')"
+      @show-keyboard-help="$emit('show-keyboard-help')"
+    />
   </aside>
 </template>
 
@@ -106,4 +122,5 @@ defineProps<{
   color: #ff9bb0;
   font-weight: 700;
 }
+
 </style>

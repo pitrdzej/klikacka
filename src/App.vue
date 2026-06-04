@@ -53,12 +53,9 @@ const {
   bossClicksRequired,
   bossClicksDone,
   bossIncomingName,
-  bossIncomingImage,
   bossCurrentName,
   bossCurrentImage,
   bossNextInSeconds,
-  bossSpawnProgress,
-  bossWarningText,
   bossResultText,
   bossResultTone,
   boostTimeLeftSeconds,
@@ -86,6 +83,13 @@ const {
   prestigeBought,
   prestigeMultiplier,
   prestigeCost,
+  unlockedSongCount,
+  prestigeRequiredSongCount,
+  hasPrestigeSongRequirement,
+  extendedPianoEnabled,
+  extendedPianoUnlocked,
+  totalUpgradeCount,
+  setExtendedPianoEnabled,
   selectSong
 } = useGameState()
 
@@ -156,6 +160,11 @@ function handleVolumeChange(event: Event): void {
 const showKeyboardHelp = ref<boolean>(false)
 function toggleKeyboardHelp(): void {
   showKeyboardHelp.value = !showKeyboardHelp.value
+}
+
+function toggleExtendedPiano(): void {
+  if (!extendedPianoUnlocked.value) return
+  setExtendedPianoEnabled(!extendedPianoEnabled.value)
 }
 
 const showSettingsMenu = ref<boolean>(false)
@@ -258,10 +267,6 @@ function toggleMusicMute(): void {
                 <span>{{ musicVolume }}%</span>
               </div>
             </div>
-            <button class="settings-item" @click="toggleKeyboardHelp">
-              <i class="fa-solid fa-keyboard"></i>
-              <span>{{ showKeyboardHelp ? 'Skrýt nápovědu kláves' : 'Zobrazit nápovědu kláves' }}</span>
-            </button>
             <button class="settings-item" :class="{ 'save-flash': saveFlash }" @click="handleSave">
               <i class="fa-solid fa-save"></i>
               <span>{{ saveFlash ? 'Uloženo!' : 'Uložit hru' }}</span>
@@ -346,6 +351,10 @@ function toggleMusicMute(): void {
             podle Vaší fantazie, nebo podle předehraných písniček. Písně zatím nemění zisk, můžete
             však mezi nimi měnit a hrát je tak, jak budete chtít.
           </p>
+          <p>
+            Rozšířené piano přidává spodní oktávu a několik dalších tónů pro pohodlné hraní z klávesnice.
+            Stav přepínáš v boxu pod přehledem a pak můžeš hrát dál bez dalších nastavení.
+          </p>
 
           <h4>Bossové</h4>
           <p>
@@ -415,7 +424,9 @@ function toggleMusicMute(): void {
         :hall-investor-requirement="hallInvestorRequirement"
         :hall-capacity-increase="hallCapacityIncrease"
         :boss-wins="bossWins"
-        :has-all-songs="!hasNextSong"
+        :unlocked-song-count="unlockedSongCount"
+        :prestige-required-song-count="prestigeRequiredSongCount"
+        :has-prestige-song-requirement="hasPrestigeSongRequirement"
         :prestige-bought="prestigeBought"
         :prestige-level="prestigeLevel"
         :prestige-multiplier="prestigeMultiplier"
@@ -441,7 +452,6 @@ function toggleMusicMute(): void {
         :current-song-name="currentSong.name"
         :unlocked-song-names="unlockedSongNames"
         :selected-song-index="selectedSongIndex"
-        :audience="audience"
         :capacity="capacity"
         :display-audience="displayAudience"
         :audience-overflow="audienceOverflow"
@@ -451,23 +461,21 @@ function toggleMusicMute(): void {
         :boss-clicks-required="bossClicksRequired"
         :boss-clicks-done="bossClicksDone"
         :boss-incoming-name="bossIncomingName"
-        :boss-incoming-image="bossIncomingImage"
         :boss-current-name="bossCurrentName"
         :boss-current-image="bossCurrentImage"
         :boss-next-in-seconds="bossNextInSeconds"
-        :boss-spawn-progress="bossSpawnProgress"
         :boss-bar-visible-seconds="bossBarVisibleSeconds"
-        :boss-warning-text="bossWarningText"
         :last-pressed-note="lastPressedNote"
         :boost-slots="boostSlots"
         :boost-time-left-seconds="boostTimeLeftSeconds"
         :show-keyboard-help="showKeyboardHelp"
         :prestige-level="prestigeLevel"
         :prestige-multiplier="prestigeMultiplier"
+        :extended-piano-enabled="extendedPianoEnabled"
+        :extended-piano-unlocked="extendedPianoUnlocked"
         @sing="sing"
         @select-song="selectSong"
         @activate-boost="activateOwnedBoost"
-        @buy-song="buySong"
         @play-note="triggerManualNote"
       />
 
@@ -486,6 +494,11 @@ function toggleMusicMute(): void {
         :audience-income="audienceIncome"
         :audience-income-interval-seconds="audienceIncomeIntervalSeconds"
         :prestige-multiplier="prestigeMultiplier"
+        :extended-piano-enabled="extendedPianoEnabled"
+        :extended-piano-unlocked="extendedPianoUnlocked"
+        :total-upgrade-count="totalUpgradeCount"
+        @toggle-extended-piano="toggleExtendedPiano"
+        @show-keyboard-help="toggleKeyboardHelp"
       />
 
     </main>

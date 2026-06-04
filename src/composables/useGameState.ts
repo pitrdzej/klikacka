@@ -1,177 +1,54 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { roundDownToHalf } from '@/utils/number'
 import { playNote, keyToNote, extendedKeyToNote } from '@/utils/notes'
-
-type FloatingText = { id: number; x: number; y: number; amount: number }
-type AudienceMember = { id: number; joinTime: number; leaveTime: number; hue: number }
-type BoostType = 'click' | 'investor' | 'audience'
-type BoostClaimMilestones = Record<BoostType, number>
-type BoostTimers = Record<BoostType, number>
-type GameState = {
-    money?: number
-    investors?: number
-    equipment?: number
-    ticketPrice?: number
-    audience?: number
-    capacity?: number
-    adLevel?: number
-    songLevel?: number
-    selectedSongIndex?: number
-    bossWins?: number
-    pendingBoss?: BossProfile
-    pendingBossRemainingMs?: number
-    audienceMembers?: AudienceMember[]
-    availableBoosts?: BoostType[]
-    unlockedBoosts?: BoostType[]
-    boostClaimMilestones?: Partial<BoostClaimMilestones>
-    activeBoosts?: BoostType[]
-    boostRemainingByTypeMs?: Partial<Record<BoostType, number>>
-    activeBoost?: BoostType
-    boostRemainingMs?: number
-    lastSeenAt?: number
-    prestigeLevel?: number
-    prestigeBought?: boolean
-}
-
-type Song = {
-    name: string
-    melody: string[]
-}
-
-type BossProfile = {
-    name: string
-    fame: number
-    image: string
-}
-
-type BossResultTone = 'success' | 'error'
-
-const OFFLINE_BASE_MULTIPLIER = 0.04
-const OFFLINE_MAX_MULTIPLIER = 0.24
-const OFFLINE_BASE_MAX_SECONDS = 60 * 60 * 8
-const OFFLINE_HARD_MAX_SECONDS = 60 * 60 * 24
-const MIN_OFFLINE_REWARD_SECONDS = 60 * 60
-const SAVE_DEBOUNCE_MS = 500
-const BOOST_DURATION_SECONDS = 60
-const PRESTIGE_COST = 20_000_000
-const SAVE_EXPORT_KEY = 'klikacka-save-key-2026'
-const BOSS_MIN_DELAY_MS = 180_000
-const BOSS_MAX_DELAY_MS = 240_000
-const BOSS_DURATION_SECONDS = 23
-const BOSS_WARNING_WINDOW_SECONDS = 60
-const BOSS_BAR_VISIBLE_SECONDS = 30
-const PLAYER_INACTIVE_MS = 60_000
-const BOSS_REENGAGE_CLICKS = 5
-const AUDIENCE_BASE_JOIN_DELAY_SECONDS = 9
-const AUDIENCE_JOIN_DELAY_STEP_LEVELS = 3
-const AUDIENCE_MIN_JOIN_DELAY_SECONDS = 2
-const AUDIENCE_BASE_INCOME_INTERVAL_SECONDS = 30
-const AUDIENCE_INCOME_STEP_LEVELS = 6
-const AUDIENCE_MIN_INCOME_INTERVAL_SECONDS = 5
-const AUDIENCE_BASE_STAY_SECONDS = 120
-const AUDIENCE_STAY_STEP_LEVELS = 5
-
-const BOSS_WIN_MESSAGES = [
-    'Celebrita {boss} ustoupila. Publikum teď přechází k Tobě.',
-    'Nyní jsi králem pódia.',
-    'Celebrita {boss} ztratila tempo a fanoušci skandují tvoje jméno.',
-    'Stage je tvoje. Dav je na tvojí straně.'
-]
-
-const BOSS_LOSS_MESSAGES = [
-    'Publikum brečí, koncert interpreta je zrušený.',
-    'Celebrita {boss} tě přehrála. Dav odchází zklamaný.',
-    'Smolný večer. Město mluví o vítězství interpreta.',
-    'Stage dnes nepatří tobě. Publikum je zničené.'
-]
-const JAN_KAFKA_WIN_STEAL_CHANCE = 0.4
-const AUDIENCE_BOOST_BOSS_REWARD_NAMES = new Set(['Hana Zagorová', 'Jan Kafka'])
-
-const BOSS_ROSTER: BossProfile[] = [
-    { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' },
-    { name: 'Yzomandias', fame: 1.45, image: 'bosses/Yzomandias.jpg' },
-    { name: 'Dua Lipa', fame: 1.7, image: 'bosses/DuaLipa.jpg' },
-    { name: 'Ed Sheeran', fame: 1.8, image: 'bosses/EdSheeran.jpg' },
-    { name: 'Billie Eilish', fame: 1.9, image: 'bosses/Billie.jpg' },
-    { name: 'Hana Zagorová', fame: 2, image: 'bosses/HanaZagorova.jpg' },
-    { name: 'Jan Kafka', fame: 2.2, image: 'bosses/JanKafka.jpg' }
-]
-
-const DEFAULT_BOSS: BossProfile = { name: 'Tomáš Klus', fame: 1.0, image: 'bosses/TomasKlus.jpg' }
-
-const SONGS: Song[] = [
-    {
-        name: 'Ovčáci čtveráci',
-        melody: [
-            'C4', 'E4', 'G4',
-            'C4', 'E4', 'G4',
-            'E4', 'E4', 'D4', 'E4', 'F4', 'D4',
-            'E4', 'E4', 'D4', 'E4', 'F4', 'D4',
-            'E4', 'D4', 'C4'
-        ]
-    },
-    {
-        name: 'Skákal pes',
-        melody: [
-            'G4', 'G4', 'E4',
-            'G4', 'G4', 'E4',
-            'G4', 'G4', 'A4', 'G4',
-            'G4', 'F4',
-            'F4', 'F4', 'D4',
-            'F4', 'F4', 'D4',
-            'F4', 'F4', 'G4', 'F4',
-            'F4', 'E4'
-        ]
-    },
-    {
-        name: 'Kočka leze dírou',
-        melody: [
-            'C4', 'D4', 'E4', 'F4',
-            'G4', 'G4', 'A4', 'A4',
-            'G4', 'A4', 'A4', 'G4',
-            'F4', 'F4', 'F4', 'F4',
-            'E4', 'E4', 'D4', 'D4',
-            'G4', 'F4', 'F4', 'F4', 'F4',
-            'E4', 'E4', 'D4', 'D4',
-            'C4'
-        ]
-    },
-    {
-        name: 'Prší, prší',
-        melody: [
-            'G4', 'G4', 'A4', 'G4',
-            'G4', 'G4', 'A4', 'G4',
-            'G4', 'G4', 'A4', 'G4',
-            'F4', 'F4', 'F4', 'F4',
-            'E4', 'E4', 'E4',
-            'D4', 'D4', 'G4', 'G4',
-            'C4', 'C4', 'C4'
-        ]
-    },
-    {
-        name: 'Shape of You',
-        melody: [
-            'D4', 'F4', 'D4', 'D4',
-            'F4', 'D4', 'D4', 'F4',
-            'D4', 'E4', 'D4', 'C4'
-        ]
-    },
-        {
-            name: 'Starý farmář farmu měl',
-        melody: [
-                        // Old MacDonald (simplified, in C4)
-                        'C4','C4','C4','G4','A4','A4','G4',
-                        'E4','E4','D4','D4','C4','C4','G4',
-                        'C4','C4','C4','G4','A4','A4','G4',
-                        'E4','E4','D4','D4','C4'
-        ]
-    }
-]
-
-const DEFAULT_SONG: Song = {
-    name: 'Základní melodie',
-    melody: ['C4', 'E4', 'G4']
-}
+import type {
+    AudienceMember,
+    BoostClaimMilestones,
+    BoostRewardOption,
+    BoostSlot,
+    BoostTimers,
+    BoostType,
+    BossProfile,
+    BossResultTone,
+    FloatingText,
+    GameState,
+    Song
+} from '@/game/types'
+import {
+    AUDIENCE_BASE_INCOME_INTERVAL_SECONDS,
+    AUDIENCE_BASE_JOIN_DELAY_SECONDS,
+    AUDIENCE_BASE_STAY_SECONDS,
+    AUDIENCE_INCOME_STEP_LEVELS,
+    AUDIENCE_JOIN_DELAY_STEP_LEVELS,
+    AUDIENCE_MIN_INCOME_INTERVAL_SECONDS,
+    AUDIENCE_MIN_JOIN_DELAY_SECONDS,
+    BOOST_DURATION_SECONDS,
+    BOSS_BAR_VISIBLE_SECONDS,
+    BOSS_DURATION_SECONDS,
+    BOSS_MAX_DELAY_MS,
+    BOSS_MIN_DELAY_MS,
+    BOSS_REENGAGE_CLICKS,
+    BOSS_WARNING_WINDOW_SECONDS,
+    MIN_OFFLINE_REWARD_SECONDS,
+    OFFLINE_BASE_MAX_SECONDS,
+    OFFLINE_BASE_MULTIPLIER,
+    OFFLINE_HARD_MAX_SECONDS,
+    OFFLINE_MAX_MULTIPLIER,
+    PLAYER_INACTIVE_MS,
+    PRESTIGE_COST,
+    PRESTIGE_REQUIRED_UNLOCKED_SONGS,
+    SAVE_DEBOUNCE_MS,
+    SAVE_EXPORT_KEY
+} from '@/game/config'
+import {
+    AUDIENCE_BOOST_BOSS_REWARD_NAMES,
+    BOSS_LOSS_MESSAGES,
+    BOSS_ROSTER,
+    BOSS_WIN_MESSAGES,
+    DEFAULT_BOSS,
+    JAN_KAFKA_WIN_STEAL_CHANCE
+} from '@/game/bosses'
+import { DEFAULT_SONG, SONGS } from '@/game/songs'
 
 export function useGameState() {
     const money = ref<number>(0)
@@ -196,6 +73,21 @@ export function useGameState() {
     const prestigeLevel = ref<number>(0)
     const prestigeBought = computed<boolean>(() => prestigeLevel.value >= 1)
     const prestigeMultiplier = computed<number>(() => Math.pow(2, prestigeLevel.value))
+    const extendedPianoEnabled = ref<boolean>(false)
+    const extendedPianoUnlockedEver = ref<boolean>(false)
+
+    const totalUpgradeCount = computed<number>(() => {
+        const ticketUpgrades = Math.floor(Math.max(0, ticketPrice.value - 1) / 2)
+        return Math.max(0, equipment.value - 1) + adLevel.value + ticketUpgrades + songLevel.value
+    })
+
+    const extendedPianoRequirementsMet = computed<boolean>(() => {
+        return investors.value >= 20 && totalUpgradeCount.value >= 10 && capacity.value >= 80
+    })
+
+    const extendedPianoUnlocked = computed<boolean>(() => {
+        return extendedPianoRequirementsMet.value || extendedPianoUnlockedEver.value
+    })
 
     const prestigeCost = computed<number>(() => {
         if (prestigeLevel.value === 0) return PRESTIGE_COST
@@ -203,6 +95,17 @@ export function useGameState() {
         return 0
     })
     const hasAllSongs = computed<boolean>(() => songLevel.value >= SONGS.length - 1)
+    const unlockedSongCount = computed<number>(() => Math.min(songLevel.value + 1, SONGS.length))
+    const hasPrestigeSongRequirement = computed<boolean>(() => {
+        return unlockedSongCount.value >= PRESTIGE_REQUIRED_UNLOCKED_SONGS
+    })
+
+    watch(extendedPianoRequirementsMet, (requirementsMet) => {
+        if (!requirementsMet || extendedPianoUnlockedEver.value) return
+
+        extendedPianoUnlockedEver.value = true
+        scheduleSaveGame()
+    })
 
     function calculateClickPower(equipmentLevel: number): number {
         if (equipmentLevel <= 1) return 1
@@ -405,7 +308,6 @@ export function useGameState() {
         if (!path) return path
         if (/^https?:\/\//i.test(path)) return path
         const cleanPath = path.replace(/^\/+/, '')
-        // Serve from web root so `/bosses/...` and `/sounds/...` work both locally and deployed
         return `/${cleanPath}`
     }
     function isBoostAvailable(type: BoostType): boolean {
@@ -502,13 +404,6 @@ export function useGameState() {
         scheduleSaveGame()
     }
 
-    function boostLabel(type: BoostType): string {
-        if (type === 'click') return 'Klik x2'
-        if (type === 'investor') return 'Investor 1s'
-        return 'Publikum x2'
-    }
-
-
     const handleBeforeUnload = () => {
         saveGame()
     }
@@ -550,6 +445,8 @@ export function useGameState() {
             bossWins: bossWins.value,
             prestigeLevel: prestigeLevel.value,
             prestigeBought: prestigeBought.value,
+            extendedPianoEnabled: extendedPianoEnabled.value,
+            extendedPianoUnlocked: extendedPianoUnlocked.value,
             pendingBoss: pendingBossForSave,
             pendingBossRemainingMs: pendingBossRemainingMs ?? undefined,
             audienceMembers: audienceMembers.value,
@@ -655,6 +552,8 @@ export function useGameState() {
             0,
             Number(gameState.prestigeLevel) || (gameState.prestigeBought ? 1 : 0)
         )
+        extendedPianoUnlockedEver.value = Boolean(gameState.extendedPianoUnlocked || gameState.extendedPianoEnabled)
+        extendedPianoEnabled.value = Boolean(gameState.extendedPianoEnabled) && extendedPianoUnlocked.value
         const savedBoosts = Array.isArray(gameState.availableBoosts)
             ? gameState.availableBoosts
             : Array.isArray(gameState.unlockedBoosts)
@@ -804,6 +703,11 @@ export function useGameState() {
         return true
     }
 
+    function setExtendedPianoEnabled(enabled: boolean): void {
+        extendedPianoEnabled.value = enabled && extendedPianoUnlocked.value
+        scheduleSaveGame()
+    }
+
     function triggerSing(x: number, y: number): void {
         registerInteraction()
 
@@ -949,7 +853,7 @@ export function useGameState() {
         if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) return
 
         const note =
-            songLevel.value > 0
+            extendedPianoEnabled.value && extendedPianoUnlocked.value
                 ? extendedKeyToNote(event.key, event.code)
                 : keyToNote(event.key, event.code)
         if (!note) return
@@ -968,14 +872,23 @@ export function useGameState() {
 
         if (bossActive.value) return
 
-        triggerSing(clientX, clientY)
+        if (extendedPianoEnabled.value && extendedPianoUnlocked.value) {
+            triggerSing(clientX, clientY)
+        } else {
+            const allowedNotes = new Set(currentSong.value.melody)
+            if (allowedNotes.has(note)) {
+                triggerSing(clientX, clientY)
+            }
+        }
     }
 
     function sing(event: MouseEvent): void {
         const melody = currentSong.value.melody
-        const note = melody[melodyIndex.value % melody.length] ?? 'C4'
-        melodyIndex.value = (melodyIndex.value + 1) % melody.length
+        const currentIndex = melodyIndex.value % melody.length
+        const note = melody[currentIndex] ?? 'C4'
+        melodyIndex.value = (currentIndex + 1) % melody.length
         playNote(note)
+
         lastPressedNote.value = note
         triggerSing(event.clientX, event.clientY)
     }
@@ -1229,6 +1142,9 @@ export function useGameState() {
     }
 
     function resetAfterPrestige(): void {
+        const hadExtendedPianoUnlocked = extendedPianoUnlocked.value
+        const wasExtendedPianoEnabled = extendedPianoEnabled.value
+
         money.value = 0
         investors.value = 0
         equipment.value = 1
@@ -1268,12 +1184,15 @@ export function useGameState() {
         pendingBoss = null
         clearBossScheduleTimers()
         lastInteractionAt.value = Date.now()
+
+        extendedPianoUnlockedEver.value = hadExtendedPianoUnlocked
+        extendedPianoEnabled.value = wasExtendedPianoEnabled
     }
 
     function buyPrestige(): void {
         if (prestigeLevel.value >= 2) return
         if (money.value < prestigeCost.value) return
-        if (!hasAllSongs.value) return
+        if (!hasPrestigeSongRequirement.value) return
         if (bossWins.value < 20) return
 
         prestigeLevel.value += 1
@@ -1340,7 +1259,6 @@ export function useGameState() {
     onMounted(() => {
         const lastSeenAt = loadGame()
         applyOfflineEarnings(lastSeenAt)
-        // Seed a small starting audience for new games so players feel progress immediately
         if (audience.value === 0 && audienceMembers.value.length === 0) {
             for (let i = 0; i < 6; i++) {
                 addAudienceMember()
@@ -1428,15 +1346,7 @@ export function useGameState() {
         saveGame()
     })
 
-    const boostSlots = computed<Array<{
-        type: BoostType
-        label: string
-        icon: string
-        effect: string
-        tooltip: string
-        owned: boolean
-        active: boolean
-    }>>(() => {
+    const boostSlots = computed<BoostSlot[]>(() => {
         return [
             {
                 type: 'click',
@@ -1468,8 +1378,8 @@ export function useGameState() {
         ]
     })
 
-    const boostRewardOptions = computed<Array<{ type: BoostType; label: string; icon: string; effect: string; description: string }>>(() => {
-        const options: Array<{ type: BoostType; label: string; icon: string; effect: string; description: string }> = [
+    const boostRewardOptions = computed<BoostRewardOption[]>(() => {
+        const options: BoostRewardOption[] = [
             {
                 type: 'click',
                 label: 'Klik x2',
@@ -1574,6 +1484,13 @@ export function useGameState() {
         prestigeBought,
         prestigeMultiplier,
         prestigeCost,
+        unlockedSongCount,
+        prestigeRequiredSongCount: PRESTIGE_REQUIRED_UNLOCKED_SONGS,
+        hasPrestigeSongRequirement,
+        extendedPianoEnabled,
+        extendedPianoUnlocked,
+        totalUpgradeCount,
+        setExtendedPianoEnabled,
         hasAllSongs,
         selectSong
     }
